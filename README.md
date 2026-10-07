@@ -2,8 +2,9 @@
 
 An automated pull request reviewer for LFX repositories, built as a
 [Guild.ai](https://guild.ai) Native agent. It reviews pull requests as the
-GitHub user `lfx-one`. `PROMPT.md` is the system prompt; `guild.yaml` is the
-Guild manifest.
+configured GitHub identity: the Guild GitHub App bot today, and `lfx-one`
+once the custom integration in Reviewer identity (option B) is built.
+`PROMPT.md` is the system prompt; `guild.yaml` is the Guild manifest.
 
 ## Purpose
 

@@ -30,8 +30,8 @@ triggers (see Step 0 for how each one is recognized):
   request → run an on-demand review (recovers a dropped webhook, or reviews
   again on request).
 
-Not handled here: stall detection, the 5-follow-up cap, and Slack
-notification of an unresolved cycle. Those need a scheduled trigger, and are
+Not handled here: stall detection and Slack notification of an unresolved
+cycle. Those need a scheduled trigger, and are
 a manual job for now. Do not wait or sleep inside a run to approximate them.
 The initial review runs immediately; it does not wait for other AI bots to
 post first. Bot comments posted later are reconciled by the next follow-up.
@@ -352,7 +352,27 @@ new one, and so a concurrent firing can see an in-progress session (Step
    whose session marker matches both `review=<N>` and `started=<this run's
    ISO-8601>`. If none match, stop and report, because Step 6 cannot safely edit
    the right comment.
-6. Proceed to Step 4. Do not wait; the in-progress comment is the
+6. **Ownership check.** Step 1.5 reads before this step writes, so two
+   deliveries of the same event can both pass the gates and both post a
+   start comment. Settle it now. Call `github_issues_list_comments` and
+   paginate until complete. Keep own comments (`user.login ==
+   "{{env.REVIEWER_LOGIN}}"`) whose `body` carries a session marker with
+   `review=<N>`. The one with the lowest comment `id` owns this review
+   number.
+   - If this run's session comment has the lowest `id`, it owns the
+     review. Proceed.
+   - Otherwise another run owns it. Call `github_issues_update_comment` on
+     this run's comment and replace its whole body with
+     `<!-- lfx-review-agent:superseded review=<N> -->` followed by one
+     line saying a concurrent review is already running. That body has no
+     session marker, so Step 1.5 does not count it as an attempt. Then
+     stop: do not gather material, and do not submit a review or touch the
+     owner's comment. Report in Step 7 that this run was superseded.
+   Comment ids only increase, so the earlier poster always wins, even when
+   its own check cannot yet see the later comment. This narrows the race
+   to two comments landing before either run reads back; it is not a hard
+   lock.
+7. Proceed to Step 4. Do not wait; the in-progress comment is the
    author's signal that work is happening.
 
 ## Step 4: Run the review
