@@ -149,9 +149,9 @@ withheld until a maintainer approves. Making membership public fixes it.
 Run these on a throwaway PR before enabling triggers on a real repository.
 
 1. Confirm the delivered payload has the fields Step 0 reads:
-   `pull_request.updated_at`, `pull_request.head.sha`,
-   `repository.owner.login`, and for `issue_comment`, `issue.pull_request`,
-   `comment.created_at`, `comment.author_association`.
+   `pull_request.updated_at`, `repository.owner.login`, and for
+   `issue_comment`, `issue.pull_request`, `comment.created_at`,
+   `comment.author_association`.
 2. Open a PR with a deliberate issue. Confirm the session comment is
    posted, its `user.login` matches `REVIEWER_LOGIN`, and the review is
    `REQUEST_CHANGES` (do not test `APPROVE` first).
@@ -163,10 +163,12 @@ Run these on a throwaway PR before enabling triggers on a real repository.
    the recap says history was rewritten.
 6. Comment `@lfx-one re-review`. Confirm it runs a review even after an
    approval.
-7. Add an inline comment anchored outside the diff (for example, a finding
+7. After an approval, push another commit. Confirm a follow-up review
+   scoped to the commits after the approved SHA.
+8. Add an inline comment anchored outside the diff (for example, a finding
    in an unchanged caller). Confirm it lands under `Findings outside the
    diff` and the review still posts.
-8. Open a PR from an account outside the org. Confirm the review is
+9. Open a PR from an account outside the org. Confirm the review is
    `COMMENTED` with the approval-withheld marker, never `APPROVED`.
 
 ## Ideas

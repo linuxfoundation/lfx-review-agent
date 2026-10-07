@@ -290,13 +290,14 @@ From that filtered list:
     not fall back to an initial review of the whole PR. Otherwise proceed
     to Step 3.5 as a **follow-up review**, scoped to the diff between
     `last_reviewed_sha` and `head_sha`.
-- **Latest terminal review is `APPROVED`** → stop. Cycle is already
-  resolved; a push after approval that left the approval in place
-  doesn't reopen it. (If GitHub dismissed that approval, there is no
+- **Latest terminal review is `APPROVED`, `CHANGES_REQUESTED`, or
+  approval-withheld**. An approval does not end the cycle: if the
+  repository does not dismiss stale approvals, it stays valid for branch
+  protection after a push, so the new commits must be reviewed before that
+  approval is relied on. An approval-withheld review passed but still
+  needs a human approver, so new commits get a follow-up like any
+  unresolved round. (If GitHub dismissed the approval, there is no
   terminal review and the dismissed branch above applies instead.)
-- **Latest terminal review is `CHANGES_REQUESTED` or approval-withheld**
-  (an approval-withheld review passed but still needs a human approver, so
-  new commits get a follow-up like any unresolved round):
   - Compare `head_sha` against `last_reviewed_sha`. If they
     match (the push didn't actually move HEAD past what was last reviewed;
     can happen with certain merge/rebase operations), stop.
@@ -305,8 +306,8 @@ From that filtered list:
 
 ### If the event is `re-review`
 
-Someone asked for a review explicitly, so the `APPROVED` and same-SHA stops
-above do not apply. The Step 1 and Step 1.5 gates still do (closed, draft,
+Someone asked for a review explicitly, so the same-SHA stops above do not
+apply. The Step 1 and Step 1.5 gates still do (closed, draft,
 cap, in-progress, debounce).
 
 - **No terminal and no dismissed own review** → proceed to Step 3.5 as
@@ -828,10 +829,13 @@ could not be applied.
      withheld approval; put the 5a.1 note on the line after it, above the
      preview disclaimer)
    - ⏸️ **Not approved, new commits pushed during review** (only when 5c
-     found `head_moved` and the verdict was not `REQUEST_CHANGES`; on the
-     next line, say that new commits arrived after `<short head_sha>` and
-     ask the author to comment `@lfx-one re-review` to review them)
+     found `head_moved` and the verdict was not `REQUEST_CHANGES`)
    - 🔴 **Needs changes before approval**
+
+   When 5c found `head_moved`, whatever the decision, add a line after it
+   (above the preview disclaimer) saying that commits pushed after
+   `<short head_sha>` were not reviewed, and asking the author to comment
+   `@lfx-one re-review` to review them.
 
 8. **Preview disclaimer**: after the final decision, a blank line, then
    this exact italic line at the bottom of every summary (initial and
