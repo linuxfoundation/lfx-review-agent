@@ -7,4 +7,3 @@ security reporting.
 
 For more information, please read: [How to report vulnerabilities to LF projects
 and foundations](https://www.linuxfoundation.org/security).
-
