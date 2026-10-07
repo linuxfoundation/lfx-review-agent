@@ -199,10 +199,13 @@ Parse every session marker (`session-start` and `session-summary`):
   Ten attempts means the author is stuck in a loop this agent will not
   break; a human review is the next step.
 
-**B. Most recent own comment is an in-progress `session-start`.** Another
-run is already reviewing this PR (reviews take several minutes, sometimes
-around 5). **Stop silently.** Do not post another start comment and do
-not re-review.
+**B. The most recent `session-start` comment is in progress.** Look at the
+most recent own comment classed `session-start`, independent of the most
+recent own comment overall. A superseded comment from the Step 3.5 ownership
+check is class `other` and can be newer than the winning run's start comment;
+it must not hide that start. If one exists, another run is already reviewing
+this PR (reviews take several minutes, sometimes around 5). **Stop
+silently.** Do not post another start comment and do not re-review.
 
 Exception, abandoned session: if that `session-start` is older than
 **15 minutes** (`event_time - updated_at > 15m`), treat it as a crashed run.
