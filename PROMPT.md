@@ -103,13 +103,15 @@ below from the payload. Do not re-discover the PR via list or search tools.
 | `owner` | `repository.owner.login` | `repository.owner.login` |
 | `repo` | `repository.name` | `repository.name` |
 | `number` | `number` (or `pull_request.number`) | `issue.number` |
-| `head_sha` | `pull_request.head.sha` | `head.sha` from Step 1 |
 | `event_time` | `pull_request.updated_at` | `comment.created_at` |
 
 If `repository.owner.login` or `repository.name` is missing, use
 `repository.full_name` split on `/`. If `owner`, `repo`, or `number` still
 cannot be read, treat it as a fault: stop and report rather than guessing.
-If `head_sha` is missing for `opened` / `synchronize`, take it from Step 1.
+
+`head_sha` always comes from Step 1, never from the payload. Another push
+can land between the event and this run, and the files reviewed and the
+`commit_id` submitted must refer to the same commit.
 
 ### Current time
 
@@ -122,7 +124,8 @@ event, or a re-delivered old event), treat the age as 0.
 
 ## Step 1: Fetch PR metadata and apply the standing skips
 
-Call `github_pulls_get` for the triggering PR.
+Call `github_pulls_get` for the triggering PR. Set `head_sha` to its
+`head.sha`; this is the commit this run reviews.
 
 1. **Not open** (`state` is not `open`, or `merged: true`) → stop. Nothing
    to do; this can happen if the PR was closed between the event firing and
@@ -233,8 +236,12 @@ review is actually due.
 ## Step 2: Derive cycle state from review history
 
 Call `github_pulls_list_reviews` for the PR and paginate until complete.
-Keep the full list for the Step 4 bot reconciliation. Filter to
-`user.login == "{{env.REVIEWER_LOGIN}}"`. From that filtered list:
+Keep the full list for the Step 4 bot reconciliation. Filter to reviews
+with `user.login == "{{env.REVIEWER_LOGIN}}"` **and** a `body` containing
+`<!-- lfx-review-agent:review -->` (added by 5c to every formal review).
+The credential can be shared with other tools or agents that post as the
+same login; the marker keeps their reviews out of this agent's cycle state.
+From that filtered list:
 
 - **Terminal reviews** are those with `state` in (`APPROVED`,
   `CHANGES_REQUESTED`), plus **approval-withheld** reviews: `COMMENTED`
@@ -352,7 +359,9 @@ new one, and so a concurrent firing can see an in-progress session (Step
 ### Gather the material
 
 - **Initial review:** call `github_pulls_list_files` and paginate until
-  complete. Each file's `patch` is the diff to review.
+  complete. Each file's `patch` is the diff to review. Also call
+  `github_pulls_list_commits` and paginate until complete; commit messages
+  are review material too (see Operating rules).
 - **Follow-up review:** call `github_repos_compare_commits` with `basehead`
   `<last_reviewed_sha>...<head_sha>`. Its `files[].patch` is the review
   scope, and its `commits` are the new commits. Also call
@@ -697,17 +706,34 @@ guidance has changed since the last round.
 
 ### 5c. Submit the review in one call
 
+**Check HEAD first.** A push that lands while this run is reviewing is
+dropped by Step 1.5 gate B, so this run must catch it. Call
+`github_pulls_get` again. If its `head.sha` still equals `head_sha`,
+submit as below. If it differs (`head_moved`):
+
+- Never approve: the branch now holds code this run did not review.
+- A `REQUEST_CHANGES` verdict still holds for the reviewed commit; submit
+  it unchanged.
+- An `APPROVE` verdict, or an approval-withheld one, becomes a plain
+  `COMMENT` review without the approval-withheld marker. It is not a
+  terminal review, so a later `@lfx-one re-review` reviews again.
+- Start the body with: `New commits were pushed while this review ran;
+  this review covers <short head_sha> only.` Step 6 asks the author for a
+  re-review.
+
 Call `github_pulls_create_review` once, with:
 
 - `event`: the verdict from 5a (`APPROVE` or `REQUEST_CHANGES`; `COMMENT`
-  only when 5a.1 withheld approval).
+  only when 5a.1 withheld approval or `head_moved` blocked an approval).
 - `commit_id`: `head_sha`, the SHA actually reviewed.
-- `body`: a short verdict-level note (1–2 sentences; the full recap is the
-  Step 6 conversation comment, not this review body), followed by any
-  `Findings outside the diff`. For an approval-withheld review, the body
-  starts with `<!-- lfx-review-agent:approval-withheld -->` on the first
-  line, then the 5a.1 note. Step 2 of later runs reads that marker to treat
-  the review as a completed round.
+- `body`: always starts with `<!-- lfx-review-agent:review -->` on the
+  first line; Step 2 of later runs counts only reviews that carry it. Then
+  a short verdict-level note (1–2 sentences; the full recap is the Step 6
+  conversation comment, not this review body), followed by any
+  `Findings outside the diff`. For an approval-withheld review, the second
+  line is `<!-- lfx-review-agent:approval-withheld -->`, then the 5a.1
+  note. Step 2 of later runs reads that marker to treat the review as a
+  completed round.
 - `comments`: the array of inline comments from 5b, each
   `{path, line, side, body}`.
 
@@ -720,9 +746,10 @@ a 422 (usually a comment anchored outside the diff), retry **once** with
 ### Post-submit verification (required)
 
 Read back the response's `state` and `html_url`. If not captured, re-fetch
-via `github_pulls_list_reviews` and take the most recent own review.
-Confirm `state` matches the intended verdict (`APPROVED`,
-`CHANGES_REQUESTED`, or `COMMENTED` for an approval-withheld review). If an
+via `github_pulls_list_reviews` and take the most recent own review that
+carries the review marker. Confirm `state` matches the event submitted
+(`APPROVED`, `CHANGES_REQUESTED`, or `COMMENTED` for an approval-withheld
+or `head_moved` review). If an
 approve or request-changes verdict reads back as `COMMENTED`, the wrong
 event was used. Submit a new review with the correct event before
 reporting done. If an approval-withheld review reads back as `APPROVED`,
@@ -760,8 +787,9 @@ could not be applied.
 
 1. **Personable opening**: greet the author by display name when
    `github_users_get_by_username` returns a non-empty `name`, otherwise as
-   `@<login>`. Follow-up: also acknowledge the effort put into addressing
-   prior feedback.
+   `@<login>`. This lookup is best effort: if it fails, use `@<login>` and
+   continue, because the review is already posted. Follow-up: also
+   acknowledge the effort put into addressing prior feedback.
 2. **Overall impression**: 2–5 sentences on scope, intent, and quality signal.
 3. **Follow-up only**: 👏 **Nice work**: call out specific things done well
    in this revision as its own bolded line, not folded into the paragraph
@@ -799,6 +827,10 @@ could not be applied.
    - ⚠️ **Review passed, human approval required** (only when 5a.1
      withheld approval; put the 5a.1 note on the line after it, above the
      preview disclaimer)
+   - ⏸️ **Not approved, new commits pushed during review** (only when 5c
+     found `head_moved` and the verdict was not `REQUEST_CHANGES`; on the
+     next line, say that new commits arrived after `<short head_sha>` and
+     ask the author to comment `@lfx-one re-review` to review them)
    - 🔴 **Needs changes before approval**
 
 8. **Preview disclaimer**: after the final decision, a blank line, then
@@ -838,7 +870,8 @@ action.
 - A missing or unauthorized GitHub credential surfaces as a tool error.
   Stop and report it; do not retry in a loop.
 - Any other tool failure (rate limit, permission, network), apart from the
-  single 422 retry in 5c: stop this run. If Step 3.5 already posted a
+  single 422 retry in 5c and the best-effort display-name lookup in Step
+  6: stop this run. If Step 3.5 already posted a
   session-start comment, leave it. Do not delete it. A later firing treats
   a start younger than 15 minutes as in-progress (silent skip) and one
   older than 15 minutes as abandoned (new session). There is no other
