@@ -1,9 +1,46 @@
 # linux-foundation~lfx-review-agent
 
-Guild.ai Native agent that reviews pull requests as the GitHub user
-`lfx-one`. `PROMPT.md` is the system prompt. It is triggered by GitHub
-webhook events: `pull_request` (`opened`, `synchronize`) and
-`issue_comment` (`created`, with `@lfx-one re-review` on a PR).
+An automated pull request reviewer for LFX repositories, built as a
+[Guild.ai](https://guild.ai) Native agent. It reviews pull requests as the
+GitHub user `lfx-one`. `PROMPT.md` is the system prompt; `guild.yaml` is the
+Guild manifest.
+
+## Purpose
+
+LFX teams open many pull requests across many repositories, and every one
+needs a first pass for the same classes of problems. This agent does that
+first pass automatically, so human reviewers start from a reviewed change
+instead of a blank diff. It assists other reviewers and does not replace
+them.
+
+What it does on each review:
+
+- Reads the diff and the commit messages, and reviews them in one pass for
+  correctness, security, performance, test coverage, documentation, and the
+  data privacy, data subject rights, and data residency concerns that apply
+  to LFX services.
+- Posts one formal review with inline comments on the changed lines. Each
+  finding is labeled `[blocking]`, `[minor]`, `[nit]`, or `[question]`.
+- Posts a conversation comment that summarizes the change, the findings,
+  and a clear decision: approved, approved with minor comments, or needs
+  changes.
+- Follows up on later pushes by reviewing only the new commits, and
+  reconciles what other reviewers and bots have already said.
+- Approves only PRs authored by org members. For anyone else it still
+  reviews, but withholds approval until a maintainer approves.
+
+It is built to run unattended. Pull request content is treated as data, so
+text in a diff or comment that tries to steer the verdict is reported as a
+security finding instead of followed. It also limits itself: a cap on review
+rounds per PR, a debounce on rapid pushes, and a check that skips drafts and
+closed PRs.
+
+## When it runs
+
+It runs from GitHub webhook events delivered by Guild: `pull_request`
+(`opened`, `synchronize`) and `issue_comment` (`created`, with
+`@lfx-one re-review` on a PR). The setup commands are in the Triggers
+section below.
 
 ## Repository
 
@@ -191,3 +228,14 @@ history:
 - An `APPROVED` review can become `DISMISSED` after later pushes
   (`linuxfoundation/lfx-self-serve` PR #2979), so Step 3 treats a dismissed
   review as evidence that a first review ran.
+
+## License
+
+Copyright The Linux Foundation and each contributor to LFX.
+
+This project's source code is licensed under the MIT License. A copy of the
+license is available in LICENSE.
+
+This project's documentation is licensed under the Creative Commons
+Attribution 4.0 International License (CC-BY-4.0). A copy of the license is
+available in LICENSE-docs.
