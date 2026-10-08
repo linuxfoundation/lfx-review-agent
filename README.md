@@ -211,9 +211,17 @@ Run these on a throwaway PR before enabling triggers on a real repository.
 
 ## Ideas
 
-- **Gatekeeper.** A cheap pre-check agent (or trigger filter) that drops
-  events the main agent would stop on anyway (drafts, closed PRs,
-  non-matching comments), to save a full model run per event.
+- **Gatekeeper (highest priority).** The `issue_comment` trigger fires on
+  every comment on every watched repository, and each one starts a full
+  model run that Step 0 then ends. A trigger-level filter on `comment.body`
+  matching `@lfx-one re-review` (case-insensitive) would reject those
+  events before any run starts. It is not built: `guild trigger create`
+  offers only `--event`, `--action` and a repo-scoped `--service-config`,
+  and no body filter is documented. Open question for Guild: does
+  `--service-config` accept a payload filter? If not, the fallback is a
+  cheap pre-check agent that forwards only matching events, if Guild
+  allows one agent to start another. Drafts and closed PRs could use the
+  same gate.
 - **Scheduled sweep.** Stall detection and Slack notification of an
   unresolved cycle need a schedule trigger and are not handled yet.
 
