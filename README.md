@@ -2,8 +2,8 @@
 
 An automated pull request reviewer for LFX repositories, built as a
 [Guild.ai](https://guild.ai) Native agent. It reviews pull requests as the
-configured GitHub identity: the Guild GitHub App bot today, and `lfx-one`
-once the custom integration in Reviewer identity (option B) is built.
+`lfx-one` GitHub account, through a custom Guild integration (see Reviewer
+identity).
 `PROMPT.md` is the system prompt; `guild.yaml` is the Guild manifest.
 
 ## Purpose
@@ -87,7 +87,7 @@ that the references are well formed, so set both before enabling triggers.
 
 | Variable | Value |
 | --- | --- |
-| `REVIEWER_LOGIN` | The GitHub login the credential posts as. With the Guild GitHub App this is the App's bot login (`<app-slug>[bot]`), not `lfx-one`. |
+| `REVIEWER_LOGIN` | The GitHub login the credential posts as: `lfx-one`. |
 | `REVIEW_AGENT_HELP_URL` | `https://github.com/linuxfoundation/lfx-review-agent/issues`. Used in the cap notice and the preview disclaimer. |
 
 If `REVIEWER_LOGIN` does not match the account that posts, the agent stops
@@ -138,7 +138,7 @@ merge, push, and delete operations are refused by default. Add explicit
 integration, since a misspelled name matches nothing.
 
 ```yaml
-github:
+lfx-one-github:
   - decision: ALLOW
     operations:
       - pulls_get
@@ -162,18 +162,30 @@ the same credential keep their own policies.
 
 ## Reviewer identity
 
-Guild connects to GitHub as a GitHub App, so reviews and comments are
-posted by the App's bot account. Two options:
+Reviews and comments post as the `lfx-one` GitHub account (a regular user
+account, shown as "LFX One [bot]"). Guild's shared `guildai~github`
+integration connects as the Guild GitHub App instead, so this agent uses a
+custom integration, `linux-foundation~lfx-one-github`.
 
-- **A. Use the App bot.** Set `REVIEWER_LOGIN` to the bot login. No extra
-  integration work. Reviews show as the bot, and an `APPROVE` from an App
-  may not count toward branch protection, depending on repo settings.
-- **B. Post as `lfx-one`.** Build a custom integration that uses the
-  `lfx-one` token. That also exposes `GET /user` and org membership checks,
-  but the tool names change and `guild.yaml` and `PROMPT.md` must follow.
+- The integration wraps the 12 GitHub REST operations the agent uses. The
+  OpenAPI spec is `integration/lfx-one-github.openapi.yaml`. It uses the
+  API key scheme with the header `Authorization: Bearer {token}`.
+- The credential is a fine-grained personal access token owned by
+  `lfx-one`, with resource owner `linuxfoundation`. Grant it read and write
+  on Pull requests and Issues, read on Contents, and access to each
+  repository the agent reviews. An organization owner must approve it.
+  Connect it from your shell and never commit it:
+  `guild integration connect linux-foundation~lfx-one-github --owner
+  linux-foundation`.
+- Set `REVIEWER_LOGIN` to `lfx-one`. The re-review phrase is
+  `@lfx-one re-review`.
+- An `APPROVE` from `lfx-one` counts toward required reviews only if the
+  account is in a team that branch protection or CODEOWNERS accepts.
+  Otherwise it is advisory.
 
-The re-review phrase stays `@lfx-one re-review` either way; it is matched as
-text, not as a mention.
+To use the Guild App bot instead, point `guild.yaml` back at
+`guildai~github` and set `REVIEWER_LOGIN` to the App's bot login
+(`<app-slug>[bot]`).
 
 ## Author organization gate
 

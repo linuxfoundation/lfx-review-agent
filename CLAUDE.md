@@ -13,7 +13,7 @@ the agent is a prompt plus a Guild manifest.
 | File | Role |
 | --- | --- |
 | `PROMPT.md` | The agent's system prompt. All behavior lives here. |
-| `guild.yaml` | Guild manifest: the `guildai~github` integration and its 12 `github_*` tools. |
+| `guild.yaml` | Guild manifest: the `lfx-one-github` integration and its 12 tools. |
 | `README.md` | Setup: workspace variables, triggers, credential policy, test checklist. |
 | `.markdownlint.json` | Lint config (80 columns; tables and code blocks exempt). |
 

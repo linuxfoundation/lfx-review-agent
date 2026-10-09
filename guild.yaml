@@ -4,13 +4,14 @@
 # Tools available to "linux-foundation~lfx-review-agent".
 #
 # Only the GitHub operations PROMPT.md calls are listed. The integration is
+# the custom lfx-one-github one, which acts as the lfx-one account. It is
 # pinned so a new release cannot rename or reshape a tool under the agent.
 # The agent runs unattended from webhook triggers, so it takes no `ui`
 # builtins.
 
 integrations:
-  - name: guildai~github
-    version: "2.0.3"
+  - name: linux-foundation~lfx-one-github
+    version: "1.0.0"
     tools:
       - github_pulls_get
       - github_pulls_list_files
