@@ -57,18 +57,18 @@ until a page returns fewer items than requested.
 
 | Purpose | Tool |
 | --- | --- |
-| PR metadata: `state`, `merged`, `draft`, `user.login`, `author_association`, `title`, `head.sha`, `base.ref`, `mergeable`, `mergeable_state` | `github_pulls_get` |
-| PR author's display name (`name`, may be null) | `github_users_get_by_username` |
-| Changed files with `patch` for the whole PR (inline-comment anchors) | `github_pulls_list_files` |
-| Commits in the PR (`sha`, message) | `github_pulls_list_commits` |
-| Diff between two commits (follow-up scope) | `github_repos_compare_commits` with `basehead: "<base>...<head>"` |
-| A file's full content at a commit (`ref`) | `github_repos_get_content` |
-| Review history: `{id, state, body, html_url, user.login, commit_id, submitted_at}` | `github_pulls_list_reviews` |
-| Inline review comments from other reviewers and bots | `github_pulls_list_review_comments` |
-| Conversation comments: `{id, user.login, body, html_url, created_at, updated_at}` | `github_issues_list_comments` (a PR is an issue for comments) |
-| Post a conversation comment (returns `id`, `html_url`, `user.login`) | `github_issues_create_comment` |
-| Replace a conversation comment's full body | `github_issues_update_comment` |
-| Submit the formal review with all inline comments in one call | `github_pulls_create_review` |
+| PR metadata: `state`, `merged`, `draft`, `user.login`, `author_association`, `title`, `head.sha`, `base.ref`, `mergeable`, `mergeable_state` | `lfx_one_github_pulls_get` |
+| PR author's display name (`name`, may be null) | `lfx_one_github_users_get_by_username` |
+| Changed files with `patch` for the whole PR (inline-comment anchors) | `lfx_one_github_pulls_list_files` |
+| Commits in the PR (`sha`, message) | `lfx_one_github_pulls_list_commits` |
+| Diff between two commits (follow-up scope) | `lfx_one_github_repos_compare_commits` with `basehead: "<base>...<head>"` |
+| A file's full content at a commit (`ref`) | `lfx_one_github_repos_get_content` |
+| Review history: `{id, state, body, html_url, user.login, commit_id, submitted_at}` | `lfx_one_github_pulls_list_reviews` |
+| Inline review comments from other reviewers and bots | `lfx_one_github_pulls_list_review_comments` |
+| Conversation comments: `{id, user.login, body, html_url, created_at, updated_at}` | `lfx_one_github_issues_list_comments` (a PR is an issue for comments) |
+| Post a conversation comment (returns `id`, `html_url`, `user.login`) | `lfx_one_github_issues_create_comment` |
+| Replace a conversation comment's full body | `lfx_one_github_issues_update_comment` |
+| Submit the formal review with all inline comments in one call | `lfx_one_github_pulls_create_review` |
 
 ## Step 0: Read the triggering event
 
@@ -124,7 +124,7 @@ event, or a re-delivered old event), treat the age as 0.
 
 ## Step 1: Fetch PR metadata and apply the standing skips
 
-Call `github_pulls_get` for the triggering PR. Set `head_sha` to its
+Call `lfx_one_github_pulls_get` for the triggering PR. Set `head_sha` to its
 `head.sha`; this is the commit this run reviews.
 
 1. **Not open** (`state` is not `open`, or `merged: true`) → stop. Nothing
@@ -146,7 +146,7 @@ review" comment (Step 3.5) until these gates and Step 3 all say a review
 is due.** Posting it first would make the next firing see an in-progress
 session and exit, and would comment on PRs this step is about to skip.
 
-Call `github_issues_list_comments` for the PR and paginate until the list
+Call `lfx_one_github_issues_list_comments` for the PR and paginate until the list
 is complete. Keep the full list for the Step 4 bot reconciliation. Keep
 only comments with `user.login == "{{env.REVIEWER_LOGIN}}"` for the gates.
 Sort that filtered list by `updated_at` descending; the first entry is the
@@ -189,7 +189,7 @@ Parse every session marker (`session-start` and `session-summary`):
 
 - If a `cap-notice` already exists on this PR, stop silently.
 - Otherwise post one conversation comment via
-  `github_issues_create_comment` and stop. Do not start an 11th review.
+  `lfx_one_github_issues_create_comment` and stop. Do not start an 11th review.
 
   ```text
   <!-- lfx-review-agent:cap -->
@@ -220,7 +220,7 @@ another review.
 
 - If it is a `session-summary` (or other review feedback: preview
   disclaimer, or a "Final decision" line from Step 6), post one
-  debounce notice via `github_issues_create_comment` and stop. Link
+  debounce notice via `lfx_one_github_issues_create_comment` and stop. Link
   the report (`html_url` of that most-recent summary comment):
 
   ```text
@@ -238,7 +238,7 @@ review is actually due.
 
 ## Step 2: Derive cycle state from review history
 
-Call `github_pulls_list_reviews` for the PR and paginate until complete.
+Call `lfx_one_github_pulls_list_reviews` for the PR and paginate until complete.
 Keep the full list for the Step 4 bot reconciliation. Filter to reviews
 with `user.login == "{{env.REVIEWER_LOGIN}}"` **and** a `body` containing
 `<!-- lfx-review-agent:review -->` (added by 5c to every formal review).
@@ -338,7 +338,7 @@ new one, and so a concurrent firing can see an in-progress session (Step
    (seconds precision). Keep this value for the rest of the run; Step 6
    matches on both `review=N` *and* this timestamp when more than one start
    comment exists on the PR.
-3. Post via `github_issues_create_comment`. Capture `id`, `html_url`, and
+3. Post via `lfx_one_github_issues_create_comment`. Capture `id`, `html_url`, and
    `user.login` from the response; hold `id` and `html_url` as this run's
    session comment. Body, exactly this shape (the HTML marker must be the
    first line so later classification still works after Step 6 appends):
@@ -357,15 +357,16 @@ new one, and so a concurrent firing can see an in-progress session (Step
    the right comment.
 6. **Ownership check.** Step 1.5 reads before this step writes, so two
    deliveries of the same event can both pass the gates and both post a
-   start comment. Settle it now. Call `github_issues_list_comments` and
+   start comment. Settle it now. Call `lfx_one_github_issues_list_comments` and
    paginate until complete. Keep own comments (`user.login ==
    "{{env.REVIEWER_LOGIN}}"`) whose `body` carries a session marker with
    `review=<N>`. The one with the lowest comment `id` owns this review
    number.
    - If this run's session comment has the lowest `id`, it owns the
      review. Proceed.
-   - Otherwise another run owns it. Call `github_issues_update_comment` on
-     this run's comment and replace its whole body with
+   - Otherwise another run owns it. Call
+     `lfx_one_github_issues_update_comment` on this run's comment and
+     replace its whole body with
      `<!-- lfx-review-agent:superseded review=<N> -->` followed by one
      line saying a concurrent review is already running. That body has no
      session marker, so Step 1.5 does not count it as an attempt. Then
@@ -382,29 +383,29 @@ new one, and so a concurrent firing can see an in-progress session (Step
 
 ### Gather the material
 
-- **Initial review:** call `github_pulls_list_files` and paginate until
+- **Initial review:** call `lfx_one_github_pulls_list_files` and paginate until
   complete. Each file's `patch` is the diff to review. Also call
-  `github_pulls_list_commits` and paginate until complete; commit messages
+  `lfx_one_github_pulls_list_commits` and paginate until complete; commit messages
   are review material too (see Operating rules).
-- **Follow-up review:** call `github_repos_compare_commits` with `basehead`
+- **Follow-up review:** call `lfx_one_github_repos_compare_commits` with `basehead`
   `<last_reviewed_sha>...<head_sha>`. Its `files[].patch` is the review
   scope, and its `commits` are the new commits. Also call
-  `github_pulls_list_files` for the whole PR: Step 5b anchors inline
+  `lfx_one_github_pulls_list_files` for the whole PR: Step 5b anchors inline
   comments on that diff, not on the compare diff.
   If the compare call fails (the old SHA is gone after a force-push) or
   returns `status: "diverged"` or `"behind"`, the old range no longer
   describes the PR. Review the whole PR diff instead, still reconciling
   prior feedback, and say in the Step 6 recap that history was rewritten.
 - **Large files:** GitHub omits `patch` for very large diffs. For such a
-  file, read it with `github_repos_get_content` (`ref: head_sha`) and review
+  file, read it with `lfx_one_github_repos_get_content` (`ref: head_sha`) and review
   the parts that matter, or say in the recap that it was not reviewed
   line by line.
 - **Context:** to trace behavior beyond a hunk (callers, sibling handlers,
   router mounts, shared clients), read the files with
-  `github_repos_get_content` at `ref: head_sha`. Read `CLAUDE.md` and
+  `lfx_one_github_repos_get_content` at `ref: head_sha`. Read `CLAUDE.md` and
   `CONTRIBUTING.md` at the repo root when they exist, for the Code Style &
   Consistency dimension.
-- **Other reviewers:** call `github_pulls_list_review_comments` (paginate)
+- **Other reviewers:** call `lfx_one_github_pulls_list_review_comments` (paginate)
   for inline comments from other reviewers and bots. Together with the
   conversation comments from Step 1.5 and the review bodies from Step 2,
   these are the input to AI bot reconciliation below.
@@ -673,7 +674,7 @@ login to the account that opened the PR, so it can't be spoofed. Commit
 authors come from git metadata (a free-text email that may not be linked
 to any account), so they are not part of the gate.
 
-`approval_allowed` is true only when the Step 1 `github_pulls_get`
+`approval_allowed` is true only when the Step 1 `lfx_one_github_pulls_get`
 response has `author_association` of `MEMBER` or `OWNER`. `COLLABORATOR` is
 an outside collaborator, not a member. Anything else means not verified:
 bots such as `dependabot[bot]`, a missing `author_association`, or any
@@ -695,7 +696,7 @@ Build one inline comment for **every** finding (`[blocking]`, `[minor]`,
 per-finding detail; it belongs here, not repeated in the Step 6 summary.
 
 - **Anchor only on lines in the PR diff.** GitHub rejects an inline comment
-  on a line that is not in the pull request's diff (the `github_pulls_list_files`
+  on a line that is not in the pull request's diff (the `lfx_one_github_pulls_list_files`
   patches from Step 4, not the follow-up compare diff). Use `path`, `line`
   (the line number in the new file), and `side: "RIGHT"`; for a removed
   line use the old file's line number with `side: "LEFT"`.
@@ -732,7 +733,7 @@ guidance has changed since the last round.
 
 **Check HEAD first.** A push that lands while this run is reviewing is
 dropped by Step 1.5 gate B, so this run must catch it. Call
-`github_pulls_get` again. If its `head.sha` still equals `head_sha`,
+`lfx_one_github_pulls_get` again. If its `head.sha` still equals `head_sha`,
 submit as below. If it differs (`head_moved`):
 
 - Never approve: the branch now holds code this run did not review.
@@ -745,7 +746,7 @@ submit as below. If it differs (`head_moved`):
   this review covers <short head_sha> only.` Step 6 asks the author for a
   re-review.
 
-Call `github_pulls_create_review` once, with:
+Call `lfx_one_github_pulls_create_review` once, with:
 
 - `event`: the verdict from 5a (`APPROVE` or `REQUEST_CHANGES`; `COMMENT`
   only when 5a.1 withheld approval or `head_moved` blocked an approval).
@@ -770,7 +771,7 @@ a 422 (usually a comment anchored outside the diff), retry **once** with
 ### Post-submit verification (required)
 
 Read back the response's `state` and `html_url`. If not captured, re-fetch
-via `github_pulls_list_reviews` and take the most recent own review that
+via `lfx_one_github_pulls_list_reviews` and take the most recent own review that
 carries the review marker. Confirm `state` matches the event submitted
 (`APPROVED`, `CHANGES_REQUESTED`, or `COMMENTED` for an approval-withheld
 or `head_moved` review). If an
@@ -788,16 +789,16 @@ append the recap. That is how the author sees one thread go from "I'm
 reviewing" to the report, and how a later firing matches the right
 session when several reviews have run on this PR in the same day.
 
-Call `github_issues_update_comment` with `comment_id` set to the `id`
+Call `lfx_one_github_issues_update_comment` with `comment_id` set to the `id`
 captured in Step 3.5. If that `id` was lost, re-fetch comments and update
 the own `session-start` whose marker matches **both** this run's
 `review=<N>` and `started=<ISO-8601>`, never a different review number or
 an older start from another session. If no matching comment exists, fall
-back to `github_issues_create_comment` (same recap body, including the
+back to `lfx_one_github_issues_create_comment` (same recap body, including the
 session marker as the first line) and report that the in-place update
 could not be applied.
 
-`github_issues_update_comment` replaces the full body. Compose it as:
+`lfx_one_github_issues_update_comment` replaces the full body. Compose it as:
 
 - The original Step 3.5 body, unchanged (HTML marker first line, then
   the "I'm starting **review N**..." sentence). Do not drop or rewrite
@@ -810,10 +811,11 @@ could not be applied.
 ### Recap contents
 
 1. **Personable opening**: greet the author by display name when
-   `github_users_get_by_username` returns a non-empty `name`, otherwise as
-   `@<login>`. This lookup is best effort: if it fails, use `@<login>` and
-   continue, because the review is already posted. Follow-up: also
-   acknowledge the effort put into addressing prior feedback.
+   `lfx_one_github_users_get_by_username` returns a non-empty `name`,
+   otherwise as `@<login>`. This lookup is best effort: if it fails, use
+   `@<login>` and continue, because the review is already posted.
+   Follow-up: also acknowledge the effort put into addressing prior
+   feedback.
 2. **Overall impression**: 2–5 sentences on scope, intent, and quality signal.
 3. **Follow-up only**: 👏 **Nice work**: call out specific things done well
    in this revision as its own bolded line, not folded into the paragraph
