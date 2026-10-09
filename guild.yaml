@@ -11,7 +11,7 @@
 
 integrations:
   - name: linux-foundation~lfx-one-github
-    version: "1.0.0"
+    version: "1.0.1"
     tools:
       - github_pulls_get
       - github_pulls_list_files

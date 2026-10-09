@@ -124,6 +124,10 @@ guild trigger create \
   --service-config '{"repo": "linuxfoundation/<repo>"}'
 ```
 
+Create triggers only for repositories the `lfx-one` token covers. A trigger
+on any other repository fails its GitHub reads and cannot post the session
+comment.
+
 The `issue_comment` trigger fires on every comment, including issue
 comments. Step 0 drops anything that is not `@lfx-one re-review` on a pull
 request.

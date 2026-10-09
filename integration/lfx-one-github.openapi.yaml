@@ -14,12 +14,20 @@
 openapi: 3.0.3
 info:
   title: LFX One GitHub
-  version: 1.0.0
+  version: 1.0.1
   description: GitHub REST operations the LFX review agent performs as lfx-one.
 servers:
   - url: https://api.github.com
 
+security:
+  - bearerAuth: []
+
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: Fine-grained token for the lfx-one account.
   parameters:
     owner:
       name: owner
@@ -60,6 +68,19 @@ components:
       content:
         application/json:
           schema: { type: object }
+    OkList:
+      description: Successful response, a JSON array
+      content:
+        application/json:
+          schema: { type: array, items: { type: object } }
+    OkObjectOrList:
+      description: Successful response, an object (file) or an array (directory)
+      content:
+        application/json:
+          schema:
+            oneOf:
+              - { type: object }
+              - { type: array, items: { type: object } }
 
 paths:
   /repos/{owner}/{repo}/pulls/{pull_number}:
@@ -83,7 +104,7 @@ paths:
         - $ref: "#/components/parameters/per_page"
         - $ref: "#/components/parameters/page"
       responses:
-        "200": { $ref: "#/components/responses/Ok" }
+        "200": { $ref: "#/components/responses/OkList" }
   /repos/{owner}/{repo}/pulls/{pull_number}/commits:
     get:
       operationId: pulls_list_commits
@@ -95,7 +116,7 @@ paths:
         - $ref: "#/components/parameters/per_page"
         - $ref: "#/components/parameters/page"
       responses:
-        "200": { $ref: "#/components/responses/Ok" }
+        "200": { $ref: "#/components/responses/OkList" }
   /repos/{owner}/{repo}/pulls/{pull_number}/reviews:
     get:
       operationId: pulls_list_reviews
@@ -107,7 +128,7 @@ paths:
         - $ref: "#/components/parameters/per_page"
         - $ref: "#/components/parameters/page"
       responses:
-        "200": { $ref: "#/components/responses/Ok" }
+        "200": { $ref: "#/components/responses/OkList" }
     post:
       operationId: pulls_create_review
       summary: Submit a review on a pull request
@@ -143,7 +164,7 @@ paths:
         - $ref: "#/components/parameters/per_page"
         - $ref: "#/components/parameters/page"
       responses:
-        "200": { $ref: "#/components/responses/Ok" }
+        "200": { $ref: "#/components/responses/OkList" }
   /repos/{owner}/{repo}/issues/{issue_number}/comments:
     get:
       operationId: issues_list_comments
@@ -155,7 +176,7 @@ paths:
         - $ref: "#/components/parameters/per_page"
         - $ref: "#/components/parameters/page"
       responses:
-        "200": { $ref: "#/components/responses/Ok" }
+        "200": { $ref: "#/components/responses/OkList" }
     post:
       operationId: issues_create_comment
       summary: Create a conversation comment
@@ -224,7 +245,7 @@ paths:
           in: query
           schema: { type: string }
       responses:
-        "200": { $ref: "#/components/responses/Ok" }
+        "200": { $ref: "#/components/responses/OkObjectOrList" }
   /users/{username}:
     get:
       operationId: users_get_by_username
