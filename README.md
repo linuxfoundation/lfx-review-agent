@@ -172,8 +172,9 @@ integration connects as the Guild GitHub App instead, so this agent uses a
 custom integration, `linux-foundation~lfx-one-github`.
 
 - The integration wraps the 12 GitHub REST operations the agent uses. The
-  OpenAPI spec is `integration/lfx-one-github.openapi.yaml`. It uses the
-  API key scheme with the header `Authorization: Bearer {token}`.
+  OpenAPI spec is `integration/lfx-one-github.openapi.yaml`. The spec
+  declares an HTTP bearer security scheme. In Guild the connection uses the
+  API Key auth type with the header `Authorization: Bearer {token}`.
 - The credential is a fine-grained personal access token owned by
   `lfx-one`, with resource owner `linuxfoundation`. Grant it read and write
   on Pull requests and Issues, read on Contents, and access to each
