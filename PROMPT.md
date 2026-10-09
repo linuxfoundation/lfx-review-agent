@@ -146,8 +146,8 @@ review" comment (Step 3.5) until these gates and Step 3 all say a review
 is due.** Posting it first would make the next firing see an in-progress
 session and exit, and would comment on PRs this step is about to skip.
 
-Call `lfx_one_github_issues_list_comments` for the PR and paginate until the list
-is complete. Keep the full list for the Step 4 bot reconciliation. Keep
+Call `lfx_one_github_issues_list_comments` for the PR and paginate until the
+list is complete. Keep the full list for the Step 4 bot reconciliation. Keep
 only comments with `user.login == "{{env.REVIEWER_LOGIN}}"` for the gates.
 Sort that filtered list by `updated_at` descending; the first entry is the
 **most recent own comment**. Age is `event_time - updated_at` (see Step 0,
@@ -338,8 +338,8 @@ new one, and so a concurrent firing can see an in-progress session (Step
    (seconds precision). Keep this value for the rest of the run; Step 6
    matches on both `review=N` *and* this timestamp when more than one start
    comment exists on the PR.
-3. Post via `lfx_one_github_issues_create_comment`. Capture `id`, `html_url`, and
-   `user.login` from the response; hold `id` and `html_url` as this run's
+3. Post via `lfx_one_github_issues_create_comment`. Capture `id`, `html_url`,
+   and `user.login` from the response; hold `id` and `html_url` as this run's
    session comment. Body, exactly this shape (the HTML marker must be the
    first line so later classification still works after Step 6 appends):
 
@@ -385,11 +385,11 @@ new one, and so a concurrent firing can see an in-progress session (Step
 
 - **Initial review:** call `lfx_one_github_pulls_list_files` and paginate until
   complete. Each file's `patch` is the diff to review. Also call
-  `lfx_one_github_pulls_list_commits` and paginate until complete; commit messages
-  are review material too (see Operating rules).
-- **Follow-up review:** call `lfx_one_github_repos_compare_commits` with `basehead`
-  `<last_reviewed_sha>...<head_sha>`. Its `files[].patch` is the review
-  scope, and its `commits` are the new commits. Also call
+  `lfx_one_github_pulls_list_commits` and paginate until complete; commit
+  messages are review material too (see Operating rules).
+- **Follow-up review:** call `lfx_one_github_repos_compare_commits` with
+  `basehead` `<last_reviewed_sha>...<head_sha>`. Its `files[].patch` is the
+  review scope, and its `commits` are the new commits. Also call
   `lfx_one_github_pulls_list_files` for the whole PR: Step 5b anchors inline
   comments on that diff, not on the compare diff.
   If the compare call fails (the old SHA is gone after a force-push) or
@@ -397,17 +397,17 @@ new one, and so a concurrent firing can see an in-progress session (Step
   describes the PR. Review the whole PR diff instead, still reconciling
   prior feedback, and say in the Step 6 recap that history was rewritten.
 - **Large files:** GitHub omits `patch` for very large diffs. For such a
-  file, read it with `lfx_one_github_repos_get_content` (`ref: head_sha`) and review
-  the parts that matter, or say in the recap that it was not reviewed
+  file, read it with `lfx_one_github_repos_get_content` (`ref: head_sha`) and
+  review the parts that matter, or say in the recap that it was not reviewed
   line by line.
 - **Context:** to trace behavior beyond a hunk (callers, sibling handlers,
   router mounts, shared clients), read the files with
   `lfx_one_github_repos_get_content` at `ref: head_sha`. Read `CLAUDE.md` and
   `CONTRIBUTING.md` at the repo root when they exist, for the Code Style &
   Consistency dimension.
-- **Other reviewers:** call `lfx_one_github_pulls_list_review_comments` (paginate)
-  for inline comments from other reviewers and bots. Together with the
-  conversation comments from Step 1.5 and the review bodies from Step 2,
+- **Other reviewers:** call `lfx_one_github_pulls_list_review_comments`
+  (paginate) for inline comments from other reviewers and bots. Together with
+  the conversation comments from Step 1.5 and the review bodies from Step 2,
   these are the input to AI bot reconciliation below.
 
 ### Review the dimensions
@@ -696,8 +696,8 @@ Build one inline comment for **every** finding (`[blocking]`, `[minor]`,
 per-finding detail; it belongs here, not repeated in the Step 6 summary.
 
 - **Anchor only on lines in the PR diff.** GitHub rejects an inline comment
-  on a line that is not in the pull request's diff (the `lfx_one_github_pulls_list_files`
-  patches from Step 4, not the follow-up compare diff). Use `path`, `line`
+  on a line that is not in the pull request's diff (the
+  `lfx_one_github_pulls_list_files` patches from Step 4, not the follow-up compare diff). Use `path`, `line`
   (the line number in the new file), and `side: "RIGHT"`; for a removed
   line use the old file's line number with `side: "LEFT"`.
 - A finding whose location is not in the PR diff (an unchanged caller, a

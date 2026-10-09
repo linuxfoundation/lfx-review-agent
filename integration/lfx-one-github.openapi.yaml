@@ -3,13 +3,12 @@
 
 # Operations for the custom Guild integration that acts as the `lfx-one`
 # GitHub account. It mirrors the 12 operations the review agent uses from
-# `guildai~github`, so PROMPT.md does not change. The credential is a
+# `guildai~github`. The credential is a
 # fine-grained token owned by `lfx-one`, connected with
 # `guild integration connect`. Never put the token in this file.
 #
-# The generated tool names are expected to be `github_<operation id>`. Check
-# them on the first `guild agent save` and fix guild.yaml and PROMPT.md
-# together if they differ.
+# Guild names each tool `<service>_<operation id>`, so the tools are
+# `lfx_one_github_<operation id>`. guild.yaml and PROMPT.md use those names.
 
 openapi: 3.0.3
 info:

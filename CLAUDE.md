@@ -31,8 +31,9 @@ through `.git/info/exclude`. Never commit them.
 - `{{env.KEY}}` is a Guild workspace variable (`REVIEWER_LOGIN`,
   `REVIEW_AGENT_HELP_URL`). The build validates these references. Do not
   write other `{{ }}` text in the prompt.
-- Tool names are the `github_*` names in `guild.yaml`. Adding a tool to the
-  prompt means adding it to `guild.yaml` and to the README credential policy.
+- Tool names are the `lfx_one_github_*` names in `guild.yaml`. Adding a tool
+  to the prompt means adding it to `guild.yaml` and to the README credential
+  policy.
 - Comment and review markers (`<!-- lfx-review-agent:review -->`,
   `:session`, `:superseded`, `:cap`, `:debounce`, `:approval-withheld`) are
   read back by later runs. Changing one breaks cycle state on open PRs.
