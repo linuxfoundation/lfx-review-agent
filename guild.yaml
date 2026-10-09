@@ -4,25 +4,26 @@
 # Tools available to "linux-foundation~lfx-review-agent".
 #
 # Only the GitHub operations PROMPT.md calls are listed. The integration is
+# the custom lfx-one-github one, which acts as the lfx-one account. It is
 # pinned so a new release cannot rename or reshape a tool under the agent.
 # The agent runs unattended from webhook triggers, so it takes no `ui`
 # builtins.
 
 integrations:
-  - name: guildai~github
-    version: "2.0.3"
+  - name: linux-foundation~lfx-one-github
+    version: "1.0.1"
     tools:
-      - github_pulls_get
-      - github_pulls_list_files
-      - github_pulls_list_commits
-      - github_pulls_list_reviews
-      - github_pulls_list_review_comments
-      - github_pulls_create_review
-      - github_issues_list_comments
-      - github_issues_create_comment
-      - github_issues_update_comment
-      - github_repos_compare_commits
-      - github_repos_get_content
-      - github_users_get_by_username
+      - lfx_one_github_pulls_get
+      - lfx_one_github_pulls_list_files
+      - lfx_one_github_pulls_list_commits
+      - lfx_one_github_pulls_list_reviews
+      - lfx_one_github_pulls_list_review_comments
+      - lfx_one_github_pulls_create_review
+      - lfx_one_github_issues_list_comments
+      - lfx_one_github_issues_create_comment
+      - lfx_one_github_issues_update_comment
+      - lfx_one_github_repos_compare_commits
+      - lfx_one_github_repos_get_content
+      - lfx_one_github_users_get_by_username
 sub_agents: []
 builtins: []

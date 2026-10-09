@@ -1,0 +1,258 @@
+# Copyright The Linux Foundation and each contributor to LFX.
+# SPDX-License-Identifier: MIT
+
+# Operations for the custom Guild integration that acts as the `lfx-one`
+# GitHub account. It mirrors the 12 operations the review agent uses from
+# `guildai~github`. The credential is a
+# fine-grained token owned by `lfx-one`, connected with
+# `guild integration connect`. Never put the token in this file.
+#
+# Guild names each tool `<service>_<operation id>`, so the tools are
+# `lfx_one_github_<operation id>`. guild.yaml and PROMPT.md use those names.
+
+openapi: 3.0.3
+info:
+  title: LFX One GitHub
+  version: 1.0.1
+  description: GitHub REST operations the LFX review agent performs as lfx-one.
+servers:
+  - url: https://api.github.com
+
+security:
+  - bearerAuth: []
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: Fine-grained token for the lfx-one account.
+  parameters:
+    owner:
+      name: owner
+      in: path
+      required: true
+      schema: { type: string }
+    repo:
+      name: repo
+      in: path
+      required: true
+      schema: { type: string }
+    pull_number:
+      name: pull_number
+      in: path
+      required: true
+      schema: { type: integer }
+    issue_number:
+      name: issue_number
+      in: path
+      required: true
+      schema: { type: integer }
+    comment_id:
+      name: comment_id
+      in: path
+      required: true
+      schema: { type: integer }
+    per_page:
+      name: per_page
+      in: query
+      schema: { type: integer, maximum: 100 }
+    page:
+      name: page
+      in: query
+      schema: { type: integer }
+  responses:
+    Ok:
+      description: Successful response
+      content:
+        application/json:
+          schema: { type: object }
+    OkList:
+      description: Successful response, a JSON array
+      content:
+        application/json:
+          schema: { type: array, items: { type: object } }
+    OkObjectOrList:
+      description: Successful response, an object (file) or an array (directory)
+      content:
+        application/json:
+          schema:
+            oneOf:
+              - { type: object }
+              - { type: array, items: { type: object } }
+
+paths:
+  /repos/{owner}/{repo}/pulls/{pull_number}:
+    get:
+      operationId: pulls_get
+      summary: Get a pull request
+      parameters:
+        - $ref: "#/components/parameters/owner"
+        - $ref: "#/components/parameters/repo"
+        - $ref: "#/components/parameters/pull_number"
+      responses:
+        "200": { $ref: "#/components/responses/Ok" }
+  /repos/{owner}/{repo}/pulls/{pull_number}/files:
+    get:
+      operationId: pulls_list_files
+      summary: List files changed in a pull request
+      parameters:
+        - $ref: "#/components/parameters/owner"
+        - $ref: "#/components/parameters/repo"
+        - $ref: "#/components/parameters/pull_number"
+        - $ref: "#/components/parameters/per_page"
+        - $ref: "#/components/parameters/page"
+      responses:
+        "200": { $ref: "#/components/responses/OkList" }
+  /repos/{owner}/{repo}/pulls/{pull_number}/commits:
+    get:
+      operationId: pulls_list_commits
+      summary: List commits in a pull request
+      parameters:
+        - $ref: "#/components/parameters/owner"
+        - $ref: "#/components/parameters/repo"
+        - $ref: "#/components/parameters/pull_number"
+        - $ref: "#/components/parameters/per_page"
+        - $ref: "#/components/parameters/page"
+      responses:
+        "200": { $ref: "#/components/responses/OkList" }
+  /repos/{owner}/{repo}/pulls/{pull_number}/reviews:
+    get:
+      operationId: pulls_list_reviews
+      summary: List reviews on a pull request
+      parameters:
+        - $ref: "#/components/parameters/owner"
+        - $ref: "#/components/parameters/repo"
+        - $ref: "#/components/parameters/pull_number"
+        - $ref: "#/components/parameters/per_page"
+        - $ref: "#/components/parameters/page"
+      responses:
+        "200": { $ref: "#/components/responses/OkList" }
+    post:
+      operationId: pulls_create_review
+      summary: Submit a review on a pull request
+      parameters:
+        - $ref: "#/components/parameters/owner"
+        - $ref: "#/components/parameters/repo"
+        - $ref: "#/components/parameters/pull_number"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                commit_id: { type: string }
+                body: { type: string }
+                event:
+                  type: string
+                  enum: [APPROVE, REQUEST_CHANGES, COMMENT]
+                comments:
+                  type: array
+                  items: { type: object }
+      responses:
+        "200": { $ref: "#/components/responses/Ok" }
+  /repos/{owner}/{repo}/pulls/{pull_number}/comments:
+    get:
+      operationId: pulls_list_review_comments
+      summary: List review comments on a pull request
+      parameters:
+        - $ref: "#/components/parameters/owner"
+        - $ref: "#/components/parameters/repo"
+        - $ref: "#/components/parameters/pull_number"
+        - $ref: "#/components/parameters/per_page"
+        - $ref: "#/components/parameters/page"
+      responses:
+        "200": { $ref: "#/components/responses/OkList" }
+  /repos/{owner}/{repo}/issues/{issue_number}/comments:
+    get:
+      operationId: issues_list_comments
+      summary: List conversation comments on an issue or pull request
+      parameters:
+        - $ref: "#/components/parameters/owner"
+        - $ref: "#/components/parameters/repo"
+        - $ref: "#/components/parameters/issue_number"
+        - $ref: "#/components/parameters/per_page"
+        - $ref: "#/components/parameters/page"
+      responses:
+        "200": { $ref: "#/components/responses/OkList" }
+    post:
+      operationId: issues_create_comment
+      summary: Create a conversation comment
+      parameters:
+        - $ref: "#/components/parameters/owner"
+        - $ref: "#/components/parameters/repo"
+        - $ref: "#/components/parameters/issue_number"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [body]
+              properties:
+                body: { type: string }
+      responses:
+        "201": { $ref: "#/components/responses/Ok" }
+  /repos/{owner}/{repo}/issues/comments/{comment_id}:
+    patch:
+      operationId: issues_update_comment
+      summary: Update a conversation comment
+      parameters:
+        - $ref: "#/components/parameters/owner"
+        - $ref: "#/components/parameters/repo"
+        - $ref: "#/components/parameters/comment_id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [body]
+              properties:
+                body: { type: string }
+      responses:
+        "200": { $ref: "#/components/responses/Ok" }
+  /repos/{owner}/{repo}/compare/{basehead}:
+    get:
+      operationId: repos_compare_commits
+      summary: Compare two commits
+      parameters:
+        - $ref: "#/components/parameters/owner"
+        - $ref: "#/components/parameters/repo"
+        - name: basehead
+          in: path
+          required: true
+          description: "<base>...<head>"
+          schema: { type: string }
+        - $ref: "#/components/parameters/per_page"
+        - $ref: "#/components/parameters/page"
+      responses:
+        "200": { $ref: "#/components/responses/Ok" }
+  /repos/{owner}/{repo}/contents/{path}:
+    get:
+      operationId: repos_get_content
+      summary: Get file or directory contents
+      parameters:
+        - $ref: "#/components/parameters/owner"
+        - $ref: "#/components/parameters/repo"
+        - name: path
+          in: path
+          required: true
+          schema: { type: string }
+        - name: ref
+          in: query
+          schema: { type: string }
+      responses:
+        "200": { $ref: "#/components/responses/OkObjectOrList" }
+  /users/{username}:
+    get:
+      operationId: users_get_by_username
+      summary: Get a user by login
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { $ref: "#/components/responses/Ok" }
