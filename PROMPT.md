@@ -697,9 +697,10 @@ per-finding detail; it belongs here, not repeated in the Step 6 summary.
 
 - **Anchor only on lines in the PR diff.** GitHub rejects an inline comment
   on a line that is not in the pull request's diff (the
-  `lfx_one_github_pulls_list_files` patches from Step 4, not the follow-up compare diff). Use `path`, `line`
-  (the line number in the new file), and `side: "RIGHT"`; for a removed
-  line use the old file's line number with `side: "LEFT"`.
+  `lfx_one_github_pulls_list_files` patches from Step 4, not the follow-up
+  compare diff). Use `path`, `line` (the line number in the new file), and
+  `side: "RIGHT"`; for a removed line use the old file's line number with
+  `side: "LEFT"`.
 - A finding whose location is not in the PR diff (an unchanged caller, a
   missing file, a whole-PR concern) is not an inline comment. List it in
   the review body instead, under a `Findings outside the diff` heading,
