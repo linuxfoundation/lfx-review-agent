@@ -128,7 +128,7 @@ for action in opened synchronize; do
     --event pull_request \
     --action "$action" \
     --agent linux-foundation~lfx-review-agent \
-    --name "lfx-review-agent $action" \
+    --name "lfx-review-agent ${REPO##*/} $action" \
     --service-config "{\"repo\": \"$REPO\"}"
 done
 
@@ -139,7 +139,7 @@ guild trigger create \
   --event issue_comment \
   --action created \
   --agent linux-foundation~lfx-review-agent \
-  --name "lfx-review-agent re-review comment" \
+  --name "lfx-review-agent ${REPO##*/} re-review comment" \
   --service-config "{\"repo\": \"$REPO\"}"
 ```
 
