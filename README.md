@@ -98,35 +98,54 @@ filter cannot see the earlier ones.
 
 ## Triggers
 
+Webhook events reach the agent through the Guild GitHub App
+(`guildai~github`), not through the `lfx-one` token. The app only delivers
+events for repositories it can see, so before creating triggers:
+
+- An organization owner installs the Guild GitHub App on the `linuxfoundation`
+  organization and enables it for each repository.
+- The workspace and the app installation must use the same GitHub
+  connection. If a trigger never fires and no session appears, ask Guild
+  which connection the trigger is bound to.
+- The repository dropdown in the Guild trigger editor may not list the
+  repository even when the app is installed. A trigger created with the CLI
+  is not checked against that list, and it fires normally.
+
 Create three webhook triggers, each scoped to one repository with
 `--service-config` and leaving `agent_input` empty so the raw payload is
-forwarded. Repeat per repository. `--agent` takes an agent identifier;
-the name below is a placeholder, and the `agent_id` in `guild.json` also
-identifies this agent.
+forwarded. Trigger names must be unique within the workspace. Repeat per
+repository.
 
 ```bash
+WS=<workspace-id>
+REPO=linuxfoundation/<repo>
+
 for action in opened synchronize; do
   guild trigger create \
+    --workspace "$WS" \
     --type webhook \
     --integration github \
     --event pull_request \
     --action "$action" \
     --agent linux-foundation~lfx-review-agent \
-    --service-config '{"repo": "linuxfoundation/<repo>"}'
+    --name "lfx-review-agent ${REPO##*/} $action" \
+    --service-config "{\"repo\": \"$REPO\"}"
 done
 
 guild trigger create \
+  --workspace "$WS" \
   --type webhook \
   --integration github \
   --event issue_comment \
   --action created \
   --agent linux-foundation~lfx-review-agent \
-  --service-config '{"repo": "linuxfoundation/<repo>"}'
+  --name "lfx-review-agent ${REPO##*/} re-review comment" \
+  --service-config "{\"repo\": \"$REPO\"}"
 ```
 
 Create triggers only for repositories the `lfx-one` token covers. A trigger
-on any other repository fails its GitHub reads and cannot post the session
-comment.
+on any other repository fails its first GitHub read, and the session stops
+with a configuration fault before anything is posted.
 
 The `issue_comment` trigger fires on every comment, including issue
 comments. Step 0 drops anything that is not `@lfx-one re-review` on a pull
@@ -134,35 +153,33 @@ request.
 
 ## Credential policy
 
-A new GitHub credential starts with an allow-all policy. Replace it with
-rules that allow only the operations in `guild.yaml`, then delete the
-allow-all policy so anything unmatched is denied. With allow-all gone,
-merge, push, and delete operations are refused by default. Add explicit
-`DENY` rules only after checking the operation names against the
-integration, since a misspelled name matches nothing.
+A new credential starts with an allow-all policy. Create a policy that
+allows only the operations in `guild.yaml`, scoped to this agent and
+workspace, then delete the allow-all policy so anything unmatched is denied.
+With allow-all gone, merge, push, and delete operations are refused by
+default. Operation names are the bare names below, without the
+`lfx_one_github_` tool prefix. Add explicit `DENY` policies only after
+checking the names against the integration, since a misspelled name matches
+nothing.
 
-```yaml
-lfx-one-github:
-  - decision: ALLOW
-    operations:
-      - pulls_get
-      - pulls_list_files
-      - pulls_list_commits
-      - pulls_list_reviews
-      - pulls_list_review_comments
-      - pulls_create_review
-      - issues_list_comments
-      - issues_create_comment
-      - issues_update_comment
-      - repos_compare_commits
-      - repos_get_content
-      - users_get_by_username
-    resources:
-      repos: ["linuxfoundation/*"]
+```bash
+CRED=<credential-id>   # guild credentials list --owner linux-foundation
+
+guild credentials policy create "$CRED" \
+  --decision ALLOW \
+  --operations pulls_get,pulls_list_files,pulls_list_commits,pulls_list_reviews,pulls_list_review_comments,pulls_create_review,issues_list_comments,issues_create_comment,issues_update_comment,repos_compare_commits,repos_get_content,users_get_by_username \
+  --workspaces <workspace-uuid> \
+  --agents <agent-uuid>
+
+guild credentials policy list "$CRED"
+guild credentials policy delete <allow-all-policy-id>
 ```
 
-Scope the rules to this agent with `--agents <agent-id>` so other agents on
-the same credential keep their own policies.
+`--workspaces` takes a UUID or `<owner>~<name>`, not a bare workspace name.
+If the credential is deleted and reconnected, its policies are gone and this
+step must be repeated for the new credential ID. A session that cannot
+resolve the credential stops at its first call with `401 Unauthorized:
+Integration credentials not configured for lfx-one-github`.
 
 ## Reviewer identity
 
