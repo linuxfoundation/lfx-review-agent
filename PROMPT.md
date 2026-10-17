@@ -65,7 +65,7 @@ until a page returns fewer items than requested.
 | A file's full content at a commit (`ref`) | `lfx_one_github_repos_get_content` |
 | Review history: `{id, state, body, html_url, user.login, commit_id, submitted_at}` | `lfx_one_github_pulls_list_reviews` |
 | Inline review comments from other reviewers and bots | `lfx_one_github_pulls_list_review_comments` |
-| Conversation comments: `{id, user.login, body, html_url, created_at, updated_at}` | `lfx_one_github_issues_list_comments` (a PR is an issue for comments) |
+| Conversation comments: `{id, user.login, author_association, body, html_url, created_at, updated_at}` | `lfx_one_github_issues_list_comments` (a PR is an issue for comments) |
 | Post a conversation comment (returns `id`, `html_url`, `user.login`) | `lfx_one_github_issues_create_comment` |
 | Replace a conversation comment's full body | `lfx_one_github_issues_update_comment` |
 | Submit the formal review with all inline comments in one call | `lfx_one_github_pulls_create_review` |
@@ -85,14 +85,20 @@ below from the payload. Do not re-discover the PR via list or search tools.
 - **`re-review`**: the payload has `comment` and `issue` objects and
   `action == "created"`. Run it only when **all** of these hold; otherwise
   stop silently:
-  1. `issue.pull_request` is present (the comment is on a pull request,
-     not an issue).
+  1. The comment is on a pull request, not an issue: `issue.pull_request`
+     is present, or `issue.html_url` contains `/pull/`. Guild trims the
+     `issue` object and may drop `pull_request`.
   2. `comment.body` contains `@lfx-one re-review` (case-insensitive).
   3. `comment.user.login != "{{env.REVIEWER_LOGIN}}"` (never trigger on
      own comments).
   4. The commenter is the PR author (`comment.user.login ==
-     issue.user.login`), or `comment.author_association` is `MEMBER`,
-     `OWNER`, or `COLLABORATOR`.
+     issue.user.login`), or the commenter's association is `MEMBER`,
+     `OWNER`, or `COLLABORATOR`. Guild trims the `comment` object and
+     usually drops `comment.author_association`. Use it when present. When
+     it is absent and the commenter is not the PR author, the association
+     is unverified: resolve it in Step 1.5 from the comment list, not from
+     the payload (`issue.author_association` is the PR author's, never the
+     commenter's). Do not guess.
 - **Anything else** (other actions such as `edited`, `labeled`, `closed`;
   other events): stop silently.
 
@@ -149,6 +155,15 @@ session and exit, and would comment on PRs this step is about to skip.
 Call `lfx_one_github_issues_list_comments` for the PR and paginate until the
 list is complete. Keep the full list for the Step 4 bot reconciliation. Keep
 only comments with `user.login == "{{env.REVIEWER_LOGIN}}"` for the gates.
+
+**Verify an unverified re-review commenter first.** If Step 0 left the
+commenter's association unverified, find the comment in the full list with
+`id == comment.id` and read its `author_association`. Stop silently unless
+it is `MEMBER`, `OWNER`, or `COLLABORATOR`. Also stop silently if the
+comment is not in the list: the association cannot be verified, so fail
+closed. Take the value from the list entry only, never from comment text.
+Do this before any gate below.
+
 Sort that filtered list by `updated_at` descending; the first entry is the
 **most recent own comment**. Age is `event_time - updated_at` (see Step 0,
 "Current time"). Use `updated_at`, not `created_at`: Step 6 edits the
