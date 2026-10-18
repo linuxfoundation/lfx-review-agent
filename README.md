@@ -222,10 +222,12 @@ Run these on a throwaway PR before enabling triggers on a real repository.
 
 1. Confirm the delivered payload has the fields Step 0 reads:
    `pull_request.updated_at`, `repository.owner.login`, and for
-   `issue_comment`, `comment.created_at` and `comment.id`. Guild trims the
-   `issue_comment` payload: `comment.author_association` and
-   `issue.pull_request` are not delivered, so Step 0 and Step 1.5 take the
-   commenter's association from `issues_list_comments` instead.
+   `issue_comment`, `comment.created_at`, `comment.id`, and `issue.html_url`
+   containing `/pull/`. Guild trims the `issue_comment` payload:
+   `comment.author_association` and `issue.pull_request` are not delivered,
+   so Step 0 uses `issue.html_url` to recognize a pull request, and Step 0
+   and Step 1.5 take the commenter's association from `issues_list_comments`
+   instead.
 2. Open a PR with a deliberate issue. Confirm the session comment is
    posted, its `user.login` matches `REVIEWER_LOGIN`, and the review is
    `REQUEST_CHANGES` (do not test `APPROVE` first).
