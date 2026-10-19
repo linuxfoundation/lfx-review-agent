@@ -225,12 +225,19 @@ Parse every session marker (`session-start` and `session-summary`):
   updating the comment. Decide it from the review history: call
   `lfx_one_github_pulls_list_reviews` (paginate until complete; Step 2
   reuses this list) and keep own reviews whose `body` contains
-  `<!-- lfx-review-agent:review -->`. The start (`started=T`) has a
-  published review if one of those reviews has `submitted_at >= T` and
-  earlier than the `started` value of the next own session or abandoned
-  marker after it (an `abandoned` marker keeps its original `started`; no
-  upper bound if it is the latest). Such a start is not abandoned: it
-  stays counted in `attempt_count` and is left untouched.
+  `<!-- lfx-review-agent:review -->`. The start (`review=N`, `started=T`)
+  has a published review if either of these holds:
+  - One of those reviews carries the marker
+    `<!-- lfx-review-agent:review-of review=N -->` with the same `N`. Use
+    this first: overlapping runs can submit a review inside another
+    session's window.
+  - A review has no `review-of` marker (posted by an older version) and
+    has `submitted_at >= T` and earlier than the `started` value of the
+    next own session or abandoned marker after it (an `abandoned` marker
+    keeps its original `started`; no upper bound if it is the latest).
+
+  Such a start is not abandoned: it stays counted in `attempt_count` and
+  is left untouched.
 - **`attempt_count`** = number of own comments that carry a
   `lfx-review-agent:session` marker, **minus** `abandoned_starts`. Each
   attempt is one conversation comment; Step 6 updates that comment in
@@ -870,7 +877,11 @@ Call `lfx_one_github_pulls_create_review` once, with:
   only when 5a.1 withheld approval or `head_moved` blocked an approval).
 - `commit_id`: `head_sha`, the SHA actually reviewed.
 - `body`: always starts with `<!-- lfx-review-agent:review -->` on the
-  first line; Step 2 of later runs counts only reviews that carry it. Then
+  first line; Step 2 of later runs counts only reviews that carry it. On
+  the same line, after a space, add
+  `<!-- lfx-review-agent:review-of review=<N> -->` with this run's review
+  number `N` from Step 3.5. Step 1.5 uses it to match a review to its
+  session even when runs overlap. Then
   a short verdict-level note (1–2 sentences; the full recap is the Step 6
   conversation comment, not this review body), followed by any
   `Findings outside the diff`. For an approval-withheld review, the second
