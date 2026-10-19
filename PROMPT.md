@@ -337,7 +337,7 @@ one reason from this list. Never put PR content in the notice.
 | Step 1, draft | this pull request is a draft. Mark it ready for review, then ask again. |
 | Gate A | this pull request already had 10 auto-reviews, the maximum for this automation. Further review should be manual. |
 | Gate B | a review is already running. Its report will replace the "starting review" comment when it finishes. If nothing appears in about 45 minutes, ask again. |
-| Gate C | a review was posted within the last 5 minutes. Ask again after that. |
+| Gate C | my last comment on this pull request was less than 5 minutes ago, so I'm waiting before reviewing again. Ask again after that. |
 
 The notice must not contain the re-review phrase itself, so it can never
 trigger another run. It is not a session comment, so it does not affect
