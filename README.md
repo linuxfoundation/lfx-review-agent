@@ -167,7 +167,7 @@ CRED=<credential-id>   # guild credentials list --owner linux-foundation
 
 guild credentials policy create "$CRED" \
   --decision ALLOW \
-  --operations pulls_get,pulls_list_files,pulls_list_commits,pulls_list_reviews,pulls_list_review_comments,pulls_create_review,issues_list_comments,issues_create_comment,issues_update_comment,repos_compare_commits,repos_get_content,users_get_by_username \
+  --operations pulls_get,pulls_list_files,pulls_list_commits,pulls_list_reviews,pulls_list_review_comments,pulls_create_review,issues_list_comments,issues_create_comment,issues_update_comment,issues_create_reaction,repos_compare_commits,repos_get_content,users_get_by_username \
   --workspaces <workspace-uuid> \
   --agents <agent-uuid>
 
@@ -188,7 +188,7 @@ account, shown as "LFX One [bot]"). Guild's shared `guildai~github`
 integration connects as the Guild GitHub App instead, so this agent uses a
 custom integration, `linux-foundation~lfx-one-github`.
 
-- The integration wraps the 12 GitHub REST operations the agent uses. The
+- The integration wraps the 13 GitHub REST operations the agent uses. The
   OpenAPI spec is `integration/lfx-one-github.openapi.yaml`. The spec
   declares an HTTP bearer security scheme. In Guild the connection uses the
   API Key auth type with the header `Authorization: Bearer {token}`.

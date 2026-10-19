@@ -13,7 +13,7 @@
 openapi: 3.0.3
 info:
   title: LFX One GitHub
-  version: 1.0.1
+  version: 1.0.2
   description: GitHub REST operations the LFX review agent performs as lfx-one.
 servers:
   - url: https://api.github.com
@@ -213,6 +213,26 @@ paths:
                 body: { type: string }
       responses:
         "200": { $ref: "#/components/responses/Ok" }
+  /repos/{owner}/{repo}/issues/comments/{comment_id}/reactions:
+    post:
+      operationId: issues_create_reaction
+      summary: React to a conversation comment
+      parameters:
+        - $ref: "#/components/parameters/owner"
+        - $ref: "#/components/parameters/repo"
+        - $ref: "#/components/parameters/comment_id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [content]
+              properties:
+                content: { type: string, enum: ["eyes"] }
+      responses:
+        "200": { $ref: "#/components/responses/Ok" }
+        "201": { $ref: "#/components/responses/Ok" }
   /repos/{owner}/{repo}/compare/{basehead}:
     get:
       operationId: repos_compare_commits

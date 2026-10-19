@@ -11,7 +11,7 @@
 
 integrations:
   - name: linux-foundation~lfx-one-github
-    version: "1.0.1"
+    version: "1.0.2"
     tools:
       - lfx_one_github_pulls_get
       - lfx_one_github_pulls_list_files
@@ -22,6 +22,7 @@ integrations:
       - lfx_one_github_issues_list_comments
       - lfx_one_github_issues_create_comment
       - lfx_one_github_issues_update_comment
+      - lfx_one_github_issues_create_reaction
       - lfx_one_github_repos_compare_commits
       - lfx_one_github_repos_get_content
       - lfx_one_github_users_get_by_username
