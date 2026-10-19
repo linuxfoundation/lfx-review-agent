@@ -179,23 +179,46 @@ text. A comment matches at most one class, first match wins:
    `<!-- lfx-review-agent:cap -->`.
 2. **`debounce-notice`**: body contains
    `<!-- lfx-review-agent:debounce -->`.
-3. **`session-start`**: body contains a session marker
+3. **`abandoned`**: body contains
+   `<!-- lfx-review-agent:abandoned review=N started=<ISO-8601> -->`. A
+   start comment that a later run found orphaned and closed out (Step
+   3.5). It carries no session marker.
+4. **`session-start`**: body contains a session marker
    `<!-- lfx-review-agent:session review=N started=<ISO-8601> -->`
    and does **not** contain the preview-disclaimer line from Step 6
    (`*➡️ This auto-review agent is a preview.`). This is an in-progress
    review: the start comment was posted and the recap has not been
    appended yet.
-4. **`session-summary`**: body contains a session marker **and** the
+5. **`session-summary`**: body contains a session marker **and** the
    preview-disclaimer line. This is a completed review report.
-5. **`other`**: any remaining own comment (manual notes, etc.).
+6. **`other`**: any remaining own comment (manual notes, etc.).
 
 Parse every session marker (`session-start` and `session-summary`):
 
+- **`abandoned_starts`** = every `session-start` comment (not only the most
+  recent) with `event_time - updated_at > 15m` **and no published review**.
+  Step 3.5 closes these out. A stale start has a published review when
+  Step 5c submitted the formal review and Step 6 then failed before
+  updating the comment. Decide it from the review history: call
+  `lfx_one_github_pulls_list_reviews` (paginate until complete; Step 2
+  reuses this list) and keep own reviews whose `body` contains
+  `<!-- lfx-review-agent:review -->`. The start (`started=T`) has a
+  published review if one of those reviews has `submitted_at >= T` and
+  earlier than the `started` value of the next own session or abandoned
+  marker after it (an `abandoned` marker keeps its original `started`; no
+  upper bound if it is the latest). Such a start is not abandoned: it
+  stays counted in `attempt_count` and is left untouched.
 - **`attempt_count`** = number of own comments that carry a
-  `lfx-review-agent:session` marker. Each attempt is one conversation
-  comment; Step 6 updates that comment in place, so a completed recap
-  still counts as one attempt.
-- **`next_review_number`** = (maximum parsed `N`, or 0 if none) + 1.
+  `lfx-review-agent:session` marker, **minus** `abandoned_starts`. Each
+  attempt is one conversation comment; Step 6 updates that comment in
+  place, so a completed recap still counts as one attempt.
+- **`next_review_number`** = (maximum parsed `N` over session markers
+  **and** `abandoned` markers, or 0 if none) + 1. An abandoned review
+  keeps its number, so numbers stay unique.
+- **`attempt_count`** does not include `abandoned` comments or
+  `abandoned_starts`, so gate A sees the same count before and after Step
+  3.5 closes them out. A run that hung without producing a review is not a
+  review round, so it does not use up the cap of 10.
 - Debounce notices and cap notices do **not** count as attempts.
 
 ### Apply gates, in this order
@@ -224,11 +247,11 @@ silently.** Do not post another start comment and do not re-review.
 
 Exception, abandoned session: if that `session-start` is older than
 **15 minutes** (`event_time - updated_at > 15m`), treat it as a crashed run.
-Leave it untouched (do not append a recap to it) and continue; Step 3.5
-will open a *new* session with `next_review_number`. Without this
-timeout, a run that died after Step 3.5 would permanently disable
-auto-review on the PR. 15 minutes is a hang limit, not the 5-minute
-debounce in gate C.
+Do not append a recap to it. Continue; if a review is due, Step 3.5
+closes out the abandoned start comment and opens a *new* session with
+`next_review_number`. Without this timeout, a run that died after Step
+3.5 would permanently disable auto-review on the PR. 15 minutes is a
+hang limit, not the 5-minute debounce in gate C.
 
 **C. Most recent own comment is younger than 5 minutes.** Do not start
 another review.
@@ -253,7 +276,8 @@ review is actually due.
 
 ## Step 2: Derive cycle state from review history
 
-Call `lfx_one_github_pulls_list_reviews` for the PR and paginate until complete.
+Call `lfx_one_github_pulls_list_reviews` for the PR and paginate until complete
+(reuse the list from Step 1.5 if it already fetched one).
 Keep the full list for the Step 4 bot reconciliation. Filter to reviews
 with `user.login == "{{env.REVIEWER_LOGIN}}"` **and** a `body` containing
 `<!-- lfx-review-agent:review -->` (added by 5c to every formal review).
@@ -295,7 +319,14 @@ From that filtered list:
 ### If the event is `synchronize`
 
 - **No terminal review exists yet**:
-  - If there is also no dismissed own review → stop. There is nothing to
+  - If there is also no dismissed own review, **and** either
+    `abandoned_starts` is non-empty or the PR has an own `abandoned`
+    comment (a Step 3.5 that closed out a start and died before posting
+    its replacement) → the first review was started and never finished
+    (the run crashed or hung). Proceed to Step 3.5 as an **initial review**. This
+    recovers a first review that the `opened` run lost.
+  - If there is also no dismissed own review and there is neither an
+    abandoned start nor an `abandoned` comment → stop. There is nothing to
     follow up on; this PR is still waiting on its first review, which only
     the `opened` event or a `re-review` comment initiates. (If `opened`
     never fired, the author can comment `@lfx-one re-review`. A
@@ -345,10 +376,19 @@ record the session so Step 6 can append the recap to *this* comment, not a
 new one, and so a concurrent firing can see an in-progress session (Step
 1.5 gate B).
 
+0. **Close out abandoned starts.** For each comment in `abandoned_starts`
+   from Step 1.5, call `lfx_one_github_issues_update_comment` and replace
+   its whole body with
+   `<!-- lfx-review-agent:abandoned review=<N> started=<ISO-8601> -->`
+   (`N` and `started` copied from its session marker, so the original start
+   time survives the edit) followed by one line saying that review did not
+   finish and a new review follows. Do this before posting
+   the new start comment. If an update fails, continue; the comment stays
+   a `session-start`, and a later run retries it.
 1. Reuse `next_review_number` from Step 1.5 (1 if this PR has no prior
-   session comments). If `next_review_number > 10`, treat it as the cap
-   (Step 1.5 gate A should already have stopped; if it did not, stop now
-   and post the cap notice).
+   session comments). The cap is enforced by `attempt_count` in Step 1.5
+   gate A, not by this number: abandoned reviews keep their numbers, so
+   the number can pass 10 while fewer than 10 reviews counted.
 2. `started` = `event_time` from Step 0, as `YYYY-MM-DDTHH:MM:SSZ`
    (seconds precision). Keep this value for the rest of the run; Step 6
    matches on both `review=N` *and* this timestamp when more than one start
@@ -919,6 +959,7 @@ action.
   6: stop this run. If Step 3.5 already posted a
   session-start comment, leave it. Do not delete it. A later firing treats
   a start younger than 15 minutes as in-progress (silent skip) and one
-  older than 15 minutes as abandoned (new session). There is no other
+  older than 15 minutes as abandoned (it edits that comment to the
+  `abandoned` marker and opens a new session). There is no other
   state to roll back; a re-delivered or future webhook event re-derives
   from GitHub.
