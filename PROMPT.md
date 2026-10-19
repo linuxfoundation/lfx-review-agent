@@ -195,19 +195,20 @@ text. A comment matches at most one class, first match wins:
 
 Parse every session marker (`session-start` and `session-summary`):
 
+- **`abandoned_starts`** = every `session-start` comment (not only the most
+  recent) with `event_time - updated_at > 15m`. Step 3.5 closes these out.
 - **`attempt_count`** = number of own comments that carry a
-  `lfx-review-agent:session` marker. Each attempt is one conversation
-  comment; Step 6 updates that comment in place, so a completed recap
-  still counts as one attempt.
+  `lfx-review-agent:session` marker, **minus** `abandoned_starts`. Each
+  attempt is one conversation comment; Step 6 updates that comment in
+  place, so a completed recap still counts as one attempt.
 - **`next_review_number`** = (maximum parsed `N` over session markers
   **and** `abandoned` markers, or 0 if none) + 1. An abandoned review
   keeps its number, so numbers stay unique.
-- **`attempt_count`** does not include `abandoned` comments. A run that
-  hung without producing a review is not a review round, so it does not
-  use up the cap of 10.
+- **`attempt_count`** does not include `abandoned` comments or
+  `abandoned_starts`, so gate A sees the same count before and after Step
+  3.5 closes them out. A run that hung without producing a review is not a
+  review round, so it does not use up the cap of 10.
 - Debounce notices and cap notices do **not** count as attempts.
-- **`abandoned_starts`** = every `session-start` comment (not only the most
-  recent) with `event_time - updated_at > 15m`. Step 3.5 closes these out.
 
 ### Apply gates, in this order
 
@@ -307,11 +308,13 @@ From that filtered list:
 
 - **No terminal review exists yet**:
   - If there is also no dismissed own review and `abandoned_starts` is
-    non-empty → the first review was started and never finished (the run
+    non-empty, or the PR has an own `abandoned` comment (a Step 3.5 that
+    closed out a start and died before posting its replacement) → the
+    first review was started and never finished (the run
     crashed or hung). Proceed to Step 3.5 as an **initial review**. This
     recovers a first review that the `opened` run lost.
-  - If there is also no dismissed own review and `abandoned_starts` is
-    empty → stop. There is nothing to
+  - If there is also no dismissed own review and there is neither an
+    abandoned start nor an `abandoned` comment → stop. There is nothing to
     follow up on; this PR is still waiting on its first review, which only
     the `opened` event or a `re-review` comment initiates. (If `opened`
     never fired, the author can comment `@lfx-one re-review`. A
@@ -369,9 +372,9 @@ new one, and so a concurrent firing can see an in-progress session (Step
    the new start comment. If an update fails, continue; the comment stays
    a `session-start`, and a later run retries it.
 1. Reuse `next_review_number` from Step 1.5 (1 if this PR has no prior
-   session comments). If `next_review_number > 10`, treat it as the cap
-   (Step 1.5 gate A should already have stopped; if it did not, stop now
-   and post the cap notice).
+   session comments). The cap is enforced by `attempt_count` in Step 1.5
+   gate A, not by this number: abandoned reviews keep their numbers, so
+   the number can pass 10 while fewer than 10 reviews counted.
 2. `started` = `event_time` from Step 0, as `YYYY-MM-DDTHH:MM:SSZ`
    (seconds precision). Keep this value for the rest of the run; Step 6
    matches on both `review=N` *and* this timestamp when more than one start
