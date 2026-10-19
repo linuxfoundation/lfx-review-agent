@@ -196,7 +196,18 @@ text. A comment matches at most one class, first match wins:
 Parse every session marker (`session-start` and `session-summary`):
 
 - **`abandoned_starts`** = every `session-start` comment (not only the most
-  recent) with `event_time - updated_at > 15m`. Step 3.5 closes these out.
+  recent) with `event_time - updated_at > 15m` **and no published review**.
+  Step 3.5 closes these out. A stale start has a published review when
+  Step 5c submitted the formal review and Step 6 then failed before
+  updating the comment. Decide it from the review history: call
+  `lfx_one_github_pulls_list_reviews` (paginate until complete; Step 2
+  reuses this list) and keep own reviews whose `body` contains
+  `<!-- lfx-review-agent:review -->`. The start (`started=T`) has a
+  published review if one of those reviews has `submitted_at >= T` and
+  earlier than the `started` time of the next own session or abandoned
+  marker after it (no upper bound if it is the latest). Such a start is
+  not abandoned: it stays counted in `attempt_count` and is left
+  untouched.
 - **`attempt_count`** = number of own comments that carry a
   `lfx-review-agent:session` marker, **minus** `abandoned_starts`. Each
   attempt is one conversation comment; Step 6 updates that comment in
@@ -265,7 +276,8 @@ review is actually due.
 
 ## Step 2: Derive cycle state from review history
 
-Call `lfx_one_github_pulls_list_reviews` for the PR and paginate until complete.
+Call `lfx_one_github_pulls_list_reviews` for the PR and paginate until complete
+(reuse the list from Step 1.5 if it already fetched one).
 Keep the full list for the Step 4 bot reconciliation. Filter to reviews
 with `user.login == "{{env.REVIEWER_LOGIN}}"` **and** a `body` containing
 `<!-- lfx-review-agent:review -->` (added by 5c to every formal review).
@@ -307,11 +319,11 @@ From that filtered list:
 ### If the event is `synchronize`
 
 - **No terminal review exists yet**:
-  - If there is also no dismissed own review and `abandoned_starts` is
-    non-empty, or the PR has an own `abandoned` comment (a Step 3.5 that
-    closed out a start and died before posting its replacement) → the
-    first review was started and never finished (the run
-    crashed or hung). Proceed to Step 3.5 as an **initial review**. This
+  - If there is also no dismissed own review, **and** either
+    `abandoned_starts` is non-empty or the PR has an own `abandoned`
+    comment (a Step 3.5 that closed out a start and died before posting
+    its replacement) → the first review was started and never finished
+    (the run crashed or hung). Proceed to Step 3.5 as an **initial review**. This
     recovers a first review that the `opened` run lost.
   - If there is also no dismissed own review and there is neither an
     abandoned start nor an `abandoned` comment → stop. There is nothing to
