@@ -205,9 +205,9 @@ Parse every session marker (`session-start` and `session-summary`):
   `<!-- lfx-review-agent:review -->`. The start (`started=T`) has a
   published review if one of those reviews has `submitted_at >= T` and
   earlier than the `started` value of the next own session or abandoned
-  marker after it (an `abandoned` marker keeps its original `started`) (no upper bound if it is the latest). Such a start is
-  not abandoned: it stays counted in `attempt_count` and is left
-  untouched.
+  marker after it (an `abandoned` marker keeps its original `started`; no
+  upper bound if it is the latest). Such a start is not abandoned: it
+  stays counted in `attempt_count` and is left untouched.
 - **`attempt_count`** = number of own comments that carry a
   `lfx-review-agent:session` marker, **minus** `abandoned_starts`. Each
   attempt is one conversation comment; Step 6 updates that comment in
