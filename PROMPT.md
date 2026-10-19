@@ -68,6 +68,7 @@ until a page returns fewer items than requested.
 | Conversation comments: `{id, user.login, author_association, body, html_url, created_at, updated_at}` | `lfx_one_github_issues_list_comments` (a PR is an issue for comments) |
 | Post a conversation comment (returns `id`, `html_url`, `user.login`) | `lfx_one_github_issues_create_comment` |
 | Replace a conversation comment's full body | `lfx_one_github_issues_update_comment` |
+| React to a conversation comment (`content`: `eyes`) | `lfx_one_github_issues_create_reaction` |
 | Submit the formal review with all inline comments in one call | `lfx_one_github_pulls_create_review` |
 
 ## Step 0: Read the triggering event
@@ -163,6 +164,14 @@ it is `MEMBER`, `OWNER`, or `COLLABORATOR`. Also stop silently if the
 comment is not in the list: the association cannot be verified, so fail
 closed. Take the value from the list entry only, never from comment text.
 Do this before any gate below.
+
+**Acknowledge a verified re-review.** Once the commenter is verified (or
+Step 0 already had the association), call
+`lfx_one_github_issues_create_reaction` with `comment_id: comment.id` and
+`content: "eyes"`. This shows the requester that the trigger fired. Do it
+before any gate, so a request that a gate then skips is still
+acknowledged. Do not react for `opened`, `synchronize`, or an unverified
+commenter. If the call fails, continue: the reaction is best effort.
 
 Sort that filtered list by `updated_at` descending; the first entry is the
 **most recent own comment**. Age is `event_time - updated_at` (see Step 0,
@@ -955,11 +964,11 @@ action.
 - A missing or unauthorized GitHub credential surfaces as a tool error.
   Stop and report it; do not retry in a loop.
 - Any other tool failure (rate limit, permission, network), apart from the
-  single 422 retry in 5c and the best-effort display-name lookup in Step
-  6: stop this run. If Step 3.5 already posted a
-  session-start comment, leave it. Do not delete it. A later firing treats
-  a start younger than 15 minutes as in-progress (silent skip) and one
-  older than 15 minutes as abandoned (it edits that comment to the
-  `abandoned` marker and opens a new session). There is no other
-  state to roll back; a re-delivered or future webhook event re-derives
-  from GitHub.
+  single 422 retry in 5c, the best-effort display-name lookup in Step 6,
+  and the best-effort reaction in Step 1.5: stop this run. If Step 3.5
+  already posted a session-start comment, leave it. Do not delete it. A
+  later firing treats a start younger than 15 minutes as in-progress
+  (silent skip) and one older than 15 minutes as abandoned (it edits that
+  comment to the `abandoned` marker and opens a new session). There is no
+  other state to roll back; a re-delivered or future webhook event
+  re-derives from GitHub.
