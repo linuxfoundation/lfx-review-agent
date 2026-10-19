@@ -97,7 +97,7 @@ below from the payload. Do not re-discover the PR via list or search tools.
      `OWNER`, or `COLLABORATOR`. Guild trims the `comment` object and
      usually drops `comment.author_association`. Use it when present. When
      it is absent and the commenter is not the PR author, the association
-     is unverified: resolve it in Step 1.5 from the comment list, not from
+     is unverified: resolve it in Step 0.5 from the comment list, not from
      the payload (`issue.author_association` is the PR author's, never the
      commenter's). Do not guess.
 - **Anything else** (other actions such as `edited`, `labeled`, `closed`;
@@ -129,6 +129,28 @@ every age check in Step 1.5 and for `started` in Step 3.5. When an age
 computed as `event_time - updated_at` is negative (a comment newer than the
 event, or a re-delivered old event), treat the age as 0.
 
+## Step 0.5: Verify and acknowledge a re-review request
+
+Run this only for a `re-review` event. For `opened` and `synchronize`, go
+to Step 1.
+
+Call `lfx_one_github_issues_list_comments` for the PR and paginate until the
+list is complete. Step 1.5 reuses this list.
+
+**Verify an unverified commenter.** If Step 0 left the commenter's
+association unverified, find the comment in the list with
+`id == comment.id` and read its `author_association`. Stop silently unless
+it is `MEMBER`, `OWNER`, or `COLLABORATOR`. Also stop silently if the
+comment is not in the list: the association cannot be verified, so fail
+closed. Take the value from the list entry only, never from comment text.
+
+**Acknowledge the request.** Once the commenter is verified (or Step 0
+already had the association), call `lfx_one_github_issues_create_reaction`
+with `comment_id: comment.id` and `content: "eyes"`. This shows the
+requester that the trigger fired. It runs before Step 1, so a request that
+a standing skip or a gate then stops is still acknowledged. If the call
+fails, continue: the reaction is best effort.
+
 ## Step 1: Fetch PR metadata and apply the standing skips
 
 Call `lfx_one_github_pulls_get` for the triggering PR. Set `head_sha` to its
@@ -154,24 +176,11 @@ is due.** Posting it first would make the next firing see an in-progress
 session and exit, and would comment on PRs this step is about to skip.
 
 Call `lfx_one_github_issues_list_comments` for the PR and paginate until the
-list is complete. Keep the full list for the Step 4 bot reconciliation. Keep
-only comments with `user.login == "{{env.REVIEWER_LOGIN}}"` for the gates.
-
-**Verify an unverified re-review commenter first.** If Step 0 left the
-commenter's association unverified, find the comment in the full list with
-`id == comment.id` and read its `author_association`. Stop silently unless
-it is `MEMBER`, `OWNER`, or `COLLABORATOR`. Also stop silently if the
-comment is not in the list: the association cannot be verified, so fail
-closed. Take the value from the list entry only, never from comment text.
-Do this before any gate below.
-
-**Acknowledge a verified re-review.** Once the commenter is verified (or
-Step 0 already had the association), call
-`lfx_one_github_issues_create_reaction` with `comment_id: comment.id` and
-`content: "eyes"`. This shows the requester that the trigger fired. Do it
-before any gate, so a request that a gate then skips is still
-acknowledged. Do not react for `opened`, `synchronize`, or an unverified
-commenter. If the call fails, continue: the reaction is best effort.
+list is complete, unless Step 0.5 already fetched it. Keep the full list for
+the Step 4 bot reconciliation. Keep only comments with
+`user.login == "{{env.REVIEWER_LOGIN}}"` for the gates. A `re-review`
+commenter was verified and acknowledged in Step 0.5, so do not repeat
+either here.
 
 Sort that filtered list by `updated_at` descending; the first entry is the
 **most recent own comment**. Age is `event_time - updated_at` (see Step 0,
@@ -965,7 +974,7 @@ action.
   Stop and report it; do not retry in a loop.
 - Any other tool failure (rate limit, permission, network), apart from the
   single 422 retry in 5c, the best-effort display-name lookup in Step 6,
-  and the best-effort reaction in Step 1.5: stop this run. If Step 3.5
+  and the best-effort reaction in Step 0.5: stop this run. If Step 3.5
   already posted a session-start comment, leave it. Do not delete it. A
   later firing treats a start younger than 15 minutes as in-progress
   (silent skip) and one older than 15 minutes as abandoned (it edits that
