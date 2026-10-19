@@ -219,7 +219,7 @@ text. A comment matches at most one class, first match wins:
 Parse every session marker (`session-start` and `session-summary`):
 
 - **`abandoned_starts`** = every `session-start` comment (not only the most
-  recent) with `event_time - updated_at > 15m` **and no published review**.
+  recent) with `event_time - updated_at > 45m` **and no published review**.
   Step 3.5 closes these out. A stale start has a published review when
   Step 5c submitted the formal review and Step 6 then failed before
   updating the comment. Decide it from the review history: call
@@ -272,12 +272,14 @@ not post another start comment and do not re-review. Stop silently, except
 for a `re-review`, which gets a skip notice.
 
 Exception, abandoned session: if that `session-start` is older than
-**15 minutes** (`event_time - updated_at > 15m`), treat it as a crashed run.
+**45 minutes** (`event_time - updated_at > 45m`), treat it as a crashed run.
 Do not append a recap to it. Continue; if a review is due, Step 3.5
 closes out the abandoned start comment and opens a *new* session with
 `next_review_number`. Without this timeout, a run that died after Step
-3.5 would permanently disable auto-review on the PR. 15 minutes is a
-hang limit, not the 5-minute debounce in gate C.
+3.5 would permanently disable auto-review on the PR. 45 minutes is a
+hang limit, not the 5-minute debounce in gate C. Healthy runs on large
+PRs have taken over 30 minutes, so a shorter limit would close out a run
+that is still working.
 
 **C. Most recent own comment is younger than 5 minutes.** Do not start
 another review.
@@ -327,7 +329,7 @@ one reason from this list. Never put PR content in the notice.
 | Step 1, not open | this pull request is closed or merged. |
 | Step 1, draft | this pull request is a draft. Mark it ready for review, then ask again. |
 | Gate A | this pull request already had 10 auto-reviews, the maximum for this automation. Further review should be manual. |
-| Gate B | a review is already running. Its report will replace the "starting review" comment when it finishes. If nothing appears in about 15 minutes, ask again. |
+| Gate B | a review is already running. Its report will replace the "starting review" comment when it finishes. If nothing appears in about 45 minutes, ask again. |
 | Gate C | a review was posted within the last 5 minutes. Ask again after that. |
 
 The notice must not contain the re-review phrase itself, so it can never
@@ -1018,8 +1020,8 @@ action.
   single 422 retry in 5c, the best-effort display-name lookup in Step 6,
   and the best-effort reaction in Step 0.5: stop this run. If Step 3.5
   already posted a session-start comment, leave it. Do not delete it. A
-  later firing treats a start younger than 15 minutes as in-progress
-  (silent skip) and one older than 15 minutes as abandoned (it edits that
+  later firing treats a start younger than 45 minutes as in-progress
+  (silent skip) and one older than 45 minutes as abandoned (it edits that
   comment to the `abandoned` marker and opens a new session). There is no
   other state to roll back; a re-delivered or future webhook event
   re-derives from GitHub.
