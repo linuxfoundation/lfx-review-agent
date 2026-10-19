@@ -144,6 +144,15 @@ it is `MEMBER`, `OWNER`, or `COLLABORATOR`. Also stop silently if the
 comment is not in the list: the association cannot be verified, so fail
 closed. Take the value from the list entry only, never from comment text.
 
+**Skip a request already answered.** If an own comment (`user.login ==
+"{{env.REVIEWER_LOGIN}}"`) carries
+`<!-- lfx-review-agent:request comment=<id> -->` or
+`<!-- lfx-review-agent:skip comment=<id> -->` with `<id>` equal to
+`comment.id`, an earlier delivery of this request already got a cap,
+debounce or skip reply. Stop silently, before any gate: a redelivery must
+not add a second reply, and gate C could otherwise turn a gate B skip into
+a debounce reply.
+
 **Acknowledge the request.** Once the commenter is verified (or Step 0
 already had the association), call `lfx_one_github_issues_create_reaction`
 with `comment_id: comment.id` and `content: "eyes"`. This shows the
@@ -267,7 +276,10 @@ Parse every session marker (`session-start` and `session-summary`):
   ```
 
   Ten attempts means the author is stuck in a loop this agent will not
-  break; a human review is the next step.
+  break; a human review is the next step. For a `re-review`, add the line
+  `<!-- lfx-review-agent:request comment=<id> -->` (`<id>` is
+  `comment.id`) right after the cap marker, so Step 0.5 recognizes a
+  redelivery. Omit it for `opened` and `synchronize`.
 
 **B. The most recent `session-start` comment is in progress.** Look at the
 most recent own comment classed `session-start`, independent of the most
@@ -301,6 +313,9 @@ another review.
   @<login> A recent review was posted within the last 5 minutes: <html_url>. I won't re-review yet. Push another update after 5 minutes if you want another pass.
   ```
 
+  For a `re-review`, add `<!-- lfx-review-agent:request comment=<id> -->`
+  right after the debounce marker, as in gate A.
+
 - If it is already a `debounce-notice` or `cap-notice`, stop silently
   (do not stack another notice), except that a `re-review` gets a skip
   notice.
@@ -320,11 +335,12 @@ requester would otherwise see nothing more. Post one short reply with
 posted the cap notice (gate A) or the debounce notice (gate C): that
 comment already says why. Never post one for `opened` or `synchronize`.
 
-First check the own comments from Step 0.5 or Step 1.5. If a `skip-notice`
-with the same `comment=<id>` already exists, stop without posting (a
-re-delivered webhook must not stack replies). Use `comment.id` for `<id>`
-and the commenter's `comment.user.login` for `<commenter>`. Pick exactly
-one reason from this list. Never put PR content in the notice.
+Step 0.5 already stopped a redelivered request that has a reply, so no
+duplicate check is needed here. Use `comment.id` for `<id>` and the
+commenter's `comment.user.login` for `<commenter>`. Pick exactly one
+reason from this list. Never put PR content in the notice. Two deliveries
+that run at the same moment can still post two identical replies; that is
+accepted.
 
 ```text
 <!-- lfx-review-agent:skip comment=<id> -->
