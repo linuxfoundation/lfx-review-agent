@@ -180,9 +180,9 @@ text. A comment matches at most one class, first match wins:
 2. **`debounce-notice`**: body contains
    `<!-- lfx-review-agent:debounce -->`.
 3. **`abandoned`**: body contains
-   `<!-- lfx-review-agent:abandoned review=N -->`. A start comment that a
-   later run found orphaned and closed out (Step 3.5). It carries no
-   session marker.
+   `<!-- lfx-review-agent:abandoned review=N started=<ISO-8601> -->`. A
+   start comment that a later run found orphaned and closed out (Step
+   3.5). It carries no session marker.
 4. **`session-start`**: body contains a session marker
    `<!-- lfx-review-agent:session review=N started=<ISO-8601> -->`
    and does **not** contain the preview-disclaimer line from Step 6
@@ -204,8 +204,8 @@ Parse every session marker (`session-start` and `session-summary`):
   reuses this list) and keep own reviews whose `body` contains
   `<!-- lfx-review-agent:review -->`. The start (`started=T`) has a
   published review if one of those reviews has `submitted_at >= T` and
-  earlier than the `started` time of the next own session or abandoned
-  marker after it (no upper bound if it is the latest). Such a start is
+  earlier than the `started` value of the next own session or abandoned
+  marker after it (an `abandoned` marker keeps its original `started`) (no upper bound if it is the latest). Such a start is
   not abandoned: it stays counted in `attempt_count` and is left
   untouched.
 - **`attempt_count`** = number of own comments that carry a
@@ -378,9 +378,11 @@ new one, and so a concurrent firing can see an in-progress session (Step
 
 0. **Close out abandoned starts.** For each comment in `abandoned_starts`
    from Step 1.5, call `lfx_one_github_issues_update_comment` and replace
-   its whole body with `<!-- lfx-review-agent:abandoned review=<N> -->`
-   (the `N` from its session marker) followed by one line saying that
-   review did not finish and a new review follows. Do this before posting
+   its whole body with
+   `<!-- lfx-review-agent:abandoned review=<N> started=<ISO-8601> -->`
+   (`N` and `started` copied from its session marker, so the original start
+   time survives the edit) followed by one line saying that review did not
+   finish and a new review follows. Do this before posting
    the new start comment. If an update fails, continue; the comment stays
    a `session-start`, and a later run retries it.
 1. Reuse `next_review_number` from Step 1.5 (1 if this PR has no prior
