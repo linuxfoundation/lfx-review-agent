@@ -144,6 +144,15 @@ it is `MEMBER`, `OWNER`, or `COLLABORATOR`. Also stop silently if the
 comment is not in the list: the association cannot be verified, so fail
 closed. Take the value from the list entry only, never from comment text.
 
+**Skip a request already answered.** If an own comment (`user.login ==
+"{{env.REVIEWER_LOGIN}}"`) carries
+`<!-- lfx-review-agent:request comment=<id> -->` or
+`<!-- lfx-review-agent:skip comment=<id> -->` with `<id>` equal to
+`comment.id`, an earlier delivery of this request already got a cap,
+debounce or skip reply. Stop silently, before any gate: a redelivery must
+not add a second reply, and gate C could otherwise turn a gate B skip into
+a debounce reply.
+
 **Acknowledge the request.** Once the commenter is verified (or Step 0
 already had the association), call `lfx_one_github_issues_create_reaction`
 with `comment_id: comment.id` and `content: "eyes"`. This shows the
@@ -158,11 +167,12 @@ Call `lfx_one_github_pulls_get` for the triggering PR. Set `head_sha` to its
 
 1. **Not open** (`state` is not `open`, or `merged: true`) → stop. Nothing
    to do; this can happen if the PR was closed between the event firing and
-   this run starting.
+   this run starting. For a `re-review`, post a skip notice first (see
+   "Skip notice" in Step 1.5).
 2. **Draft** (`draft: true`) → stop. Marking a PR ready for review is a
    separate event (`pull_request` / `ready_for_review`) that this agent does
    not listen for. The author can comment `@lfx-one re-review` once the PR
-   is ready.
+   is ready. For a `re-review`, post a skip notice first.
 3. Otherwise, proceed to Step 1.5.
 
 ## Step 1.5: Startup comment gates (early exits)
@@ -182,7 +192,8 @@ the Step 4 bot reconciliation. Keep only comments with
 commenter was verified and acknowledged in Step 0.5, so do not repeat
 either here.
 
-Sort that filtered list by `updated_at` descending; the first entry is the
+Sort that filtered list by `updated_at` descending, ignoring `skip-notice`
+comments (see Comment classes); the first entry is the
 **most recent own comment**. Age is `event_time - updated_at` (see Step 0,
 "Current time"). Use `updated_at`, not `created_at`: Step 6 edits the
 session comment in place, so "we just spoke" is the edit time.
@@ -197,35 +208,45 @@ text. A comment matches at most one class, first match wins:
    `<!-- lfx-review-agent:cap -->`.
 2. **`debounce-notice`**: body contains
    `<!-- lfx-review-agent:debounce -->`.
-3. **`abandoned`**: body contains
+3. **`skip-notice`**: body contains
+   `<!-- lfx-review-agent:skip comment=<id> -->`. A short reply to one
+   `re-review` request that a gate skipped (see "Skip notice" below).
+4. **`abandoned`**: body contains
    `<!-- lfx-review-agent:abandoned review=N started=<ISO-8601> -->`. A
    start comment that a later run found orphaned and closed out (Step
    3.5). It carries no session marker.
-4. **`session-start`**: body contains a session marker
+5. **`session-start`**: body contains a session marker
    `<!-- lfx-review-agent:session review=N started=<ISO-8601> -->`
    and does **not** contain the preview-disclaimer line from Step 6
    (`*➡️ This auto-review agent is a preview.`). This is an in-progress
    review: the start comment was posted and the recap has not been
    appended yet.
-5. **`session-summary`**: body contains a session marker **and** the
+6. **`session-summary`**: body contains a session marker **and** the
    preview-disclaimer line. This is a completed review report.
-6. **`other`**: any remaining own comment (manual notes, etc.).
+7. **`other`**: any remaining own comment (manual notes, etc.).
 
 Parse every session marker (`session-start` and `session-summary`):
 
 - **`abandoned_starts`** = every `session-start` comment (not only the most
-  recent) with `event_time - updated_at > 15m` **and no published review**.
+  recent) with `event_time - updated_at > 45m` **and no published review**.
   Step 3.5 closes these out. A stale start has a published review when
   Step 5c submitted the formal review and Step 6 then failed before
   updating the comment. Decide it from the review history: call
   `lfx_one_github_pulls_list_reviews` (paginate until complete; Step 2
   reuses this list) and keep own reviews whose `body` contains
-  `<!-- lfx-review-agent:review -->`. The start (`started=T`) has a
-  published review if one of those reviews has `submitted_at >= T` and
-  earlier than the `started` value of the next own session or abandoned
-  marker after it (an `abandoned` marker keeps its original `started`; no
-  upper bound if it is the latest). Such a start is not abandoned: it
-  stays counted in `attempt_count` and is left untouched.
+  `<!-- lfx-review-agent:review -->`. The start (`review=N`, `started=T`)
+  has a published review if either of these holds:
+  - One of those reviews carries the marker
+    `<!-- lfx-review-agent:review-of review=N -->` with the same `N`. Use
+    this first: overlapping runs can submit a review inside another
+    session's window.
+  - A review has no `review-of` marker (posted by an older version) and
+    has `submitted_at >= T` and earlier than the `started` value of the
+    next own session or abandoned marker after it (an `abandoned` marker
+    keeps its original `started`; no upper bound if it is the latest).
+
+  Such a start is not abandoned: it stays counted in `attempt_count` and
+  is left untouched.
 - **`attempt_count`** = number of own comments that carry a
   `lfx-review-agent:session` marker, **minus** `abandoned_starts`. Each
   attempt is one conversation comment; Step 6 updates that comment in
@@ -237,13 +258,15 @@ Parse every session marker (`session-start` and `session-summary`):
   `abandoned_starts`, so gate A sees the same count before and after Step
   3.5 closes them out. A run that hung without producing a review is not a
   review round, so it does not use up the cap of 10.
-- Debounce notices and cap notices do **not** count as attempts.
+- Debounce notices, cap notices and skip notices do **not** count as
+  attempts.
 
 ### Apply gates, in this order
 
 **A. Attempt cap (max 10 auto-reviews).** If `attempt_count >= 10`:
 
-- If a `cap-notice` already exists on this PR, stop silently.
+- If a `cap-notice` already exists on this PR, stop silently, except that
+  a `re-review` gets a skip notice.
 - Otherwise post one conversation comment via
   `lfx_one_github_issues_create_comment` and stop. Do not start an 11th review.
 
@@ -253,23 +276,29 @@ Parse every session marker (`session-start` and `session-summary`):
   ```
 
   Ten attempts means the author is stuck in a loop this agent will not
-  break; a human review is the next step.
+  break; a human review is the next step. For a `re-review`, add the line
+  `<!-- lfx-review-agent:request comment=<id> -->` (`<id>` is
+  `comment.id`) right after the cap marker, so Step 0.5 recognizes a
+  redelivery. Omit it for `opened` and `synchronize`.
 
 **B. The most recent `session-start` comment is in progress.** Look at the
 most recent own comment classed `session-start`, independent of the most
 recent own comment overall. A superseded comment from the Step 3.5 ownership
 check is class `other` and can be newer than the winning run's start comment;
 it must not hide that start. If one exists, another run is already reviewing
-this PR (reviews take several minutes, sometimes around 5). **Stop
-silently.** Do not post another start comment and do not re-review.
+this PR (reviews take several minutes, sometimes around 5). **Stop.** Do
+not post another start comment and do not re-review. Stop silently, except
+for a `re-review`, which gets a skip notice.
 
 Exception, abandoned session: if that `session-start` is older than
-**15 minutes** (`event_time - updated_at > 15m`), treat it as a crashed run.
+**45 minutes** (`event_time - updated_at > 45m`), treat it as a crashed run.
 Do not append a recap to it. Continue; if a review is due, Step 3.5
 closes out the abandoned start comment and opens a *new* session with
 `next_review_number`. Without this timeout, a run that died after Step
-3.5 would permanently disable auto-review on the PR. 15 minutes is a
-hang limit, not the 5-minute debounce in gate C.
+3.5 would permanently disable auto-review on the PR. 45 minutes is a
+hang limit, not the 5-minute debounce in gate C. Healthy runs on large
+PRs have taken over 30 minutes, so a shorter limit would close out a run
+that is still working.
 
 **C. Most recent own comment is younger than 5 minutes.** Do not start
 another review.
@@ -284,13 +313,51 @@ another review.
   @<login> A recent review was posted within the last 5 minutes: <html_url>. I won't re-review yet. Push another update after 5 minutes if you want another pass.
   ```
 
+  For a `re-review`, add `<!-- lfx-review-agent:request comment=<id> -->`
+  right after the debounce marker, as in gate A.
+
 - If it is already a `debounce-notice` or `cap-notice`, stop silently
-  (do not stack another notice).
-- If it is `other`, stop silently.
+  (do not stack another notice), except that a `re-review` gets a skip
+  notice.
+- If it is `other`, stop silently, except that a `re-review` gets a skip
+  notice.
 
 **D. Otherwise** proceed to Step 2. The in-progress session comment is
 still not posted. That happens in Step 3.5, only if Step 3 decides a
 review is actually due.
+
+### Skip notice
+
+The `eyes` reaction from Step 0.5 only shows that the request arrived. When
+a `re-review` stops at Step 1 or at gate A, B or C without a review, the
+requester would otherwise see nothing more. Post one short reply with
+`lfx_one_github_issues_create_comment`. Do not post one when this run just
+posted the cap notice (gate A) or the debounce notice (gate C): that
+comment already says why. Never post one for `opened` or `synchronize`.
+
+Step 0.5 already stopped a redelivered request that has a reply, so no
+duplicate check is needed here. Use `comment.id` for `<id>` and the
+commenter's `comment.user.login` for `<commenter>`. Pick exactly one
+reason from this list. Never put PR content in the notice. Two deliveries
+that run at the same moment can still post two identical replies; that is
+accepted.
+
+```text
+<!-- lfx-review-agent:skip comment=<id> -->
+@<commenter> I didn't start a review for your request: <reason>
+```
+
+| Stopped at | `<reason>` |
+| --- | --- |
+| Step 1, not open | this pull request is closed or merged. |
+| Step 1, draft | this pull request is a draft. Mark it ready for review, then ask again. |
+| Gate A | this pull request already had 10 auto-reviews, the maximum for this automation. Further review should be manual. |
+| Gate B | a review is already running. Its report will replace the "starting review" comment when it finishes. If nothing appears in about 45 minutes, ask again. |
+| Gate C | my last comment on this pull request was less than 5 minutes ago, so I'm waiting before reviewing again. Ask again after that. |
+
+The notice must not contain the re-review phrase itself, so it can never
+trigger another run. It is not a session comment, so it does not affect
+`attempt_count`, gate B or gate C. If posting fails, stop anyway.
 
 ## Step 2: Derive cycle state from review history
 
@@ -826,7 +893,11 @@ Call `lfx_one_github_pulls_create_review` once, with:
   only when 5a.1 withheld approval or `head_moved` blocked an approval).
 - `commit_id`: `head_sha`, the SHA actually reviewed.
 - `body`: always starts with `<!-- lfx-review-agent:review -->` on the
-  first line; Step 2 of later runs counts only reviews that carry it. Then
+  first line; Step 2 of later runs counts only reviews that carry it. On
+  the same line, after a space, add
+  `<!-- lfx-review-agent:review-of review=<N> -->` with this run's review
+  number `N` from Step 3.5. Step 1.5 uses it to match a review to its
+  session even when runs overlap. Then
   a short verdict-level note (1–2 sentences; the full recap is the Step 6
   conversation comment, not this review body), followed by any
   `Findings outside the diff`. For an approval-withheld review, the second
@@ -976,8 +1047,8 @@ action.
   single 422 retry in 5c, the best-effort display-name lookup in Step 6,
   and the best-effort reaction in Step 0.5: stop this run. If Step 3.5
   already posted a session-start comment, leave it. Do not delete it. A
-  later firing treats a start younger than 15 minutes as in-progress
-  (silent skip) and one older than 15 minutes as abandoned (it edits that
+  later firing treats a start younger than 45 minutes as in-progress
+  (silent skip) and one older than 45 minutes as abandoned (it edits that
   comment to the `abandoned` marker and opens a new session). There is no
   other state to roll back; a re-delivered or future webhook event
   re-derives from GitHub.
