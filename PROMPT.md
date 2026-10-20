@@ -214,7 +214,8 @@ text. A comment matches at most one class, first match wins:
 4. **`abandoned`**: body contains
    `<!-- lfx-review-agent:abandoned review=N started=<ISO-8601> -->`. A
    start comment that a later run found orphaned and closed out (Step
-   3.5). It carries no session marker.
+   3.5), or that its own run closed out because the PR was merged or
+   closed mid-review (Step 5c). It carries no session marker.
 5. **`session-start`**: body contains a session marker
    `<!-- lfx-review-agent:session review=N started=<ISO-8601> -->`
    and does **not** contain the preview-disclaimer line from Step 6
@@ -872,10 +873,23 @@ guidance has changed since the last round.
 
 ### 5c. Submit the review in one call
 
-**Check HEAD first.** A push that lands while this run is reviewing is
-dropped by Step 1.5 gate B, so this run must catch it. Call
-`lfx_one_github_pulls_get` again. If its `head.sha` still equals `head_sha`,
-submit as below. If it differs (`head_moved`):
+**Check state and HEAD first.** A push, merge, or close that lands while
+this run is reviewing is not seen by any other run, so this run must catch
+it. Call `lfx_one_github_pulls_get` again.
+
+If `state` is not `open`, or `merged: true` (`pr_closed`), the PR was
+merged or closed during the review. Do not submit a review, and skip Step
+6. Call `lfx_one_github_issues_update_comment` on this run's session
+comment (the `id` from Step 3.5) and replace its whole body with
+`<!-- lfx-review-agent:abandoned review=<N> started=<ISO-8601> -->`
+(this run's `N` and `started`), then one line: `This pull request was
+<merged|closed> before review <N> finished, so no review was posted.` No
+later run closes out this comment, because Step 1 stops on a PR that is
+not open. If the PR is reopened, the `abandoned` marker keeps review N out
+of the cap. If the update fails, say so in Step 7. Then go to Step 7.
+
+If `head.sha` still equals `head_sha`, submit as below. If it differs
+(`head_moved`):
 
 - Never approve: the branch now holds code this run did not review.
 - A `REQUEST_CHANGES` verdict still holds for the reviewed commit; submit
@@ -1037,7 +1051,9 @@ Review posted: <verdict>
 If either URL is missing, say so explicitly and link the PR itself instead
 of fabricating one. For a run that stopped at Step 0, 1, 1.5, 3, or 3.5
 without reviewing, state plainly which condition applied and take no further
-action.
+action. For a run that stopped at Step 5c with `pr_closed`, report
+`Review not posted: PR <merged|closed> during review`, link the PR and the
+closed-out session comment, and say whether the comment update succeeded.
 
 ## Error handling
 
