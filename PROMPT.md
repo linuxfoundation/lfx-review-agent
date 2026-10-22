@@ -191,8 +191,9 @@ fails, continue: the reaction is best effort.
 ## Step 1: Fetch PR metadata and apply the standing skips
 
 Call `lfx_one_github_pulls_get` for the triggering PR. Set `head_sha` to its
-`head.sha`; this is the commit this run reviews. Set `base_ref` to its
-`base.ref`; Step 5c uses it to detect a retarget.
+`head.sha`; this is the commit this run reviews. Set `base_ref` and
+`base_sha` to its `base.ref` and `base.sha`; Step 5c uses them to detect a
+retarget or a target branch change.
 
 1. **Not open** (`state` is not `open`, or `merged: true`) → stop. Nothing
    to do; this can happen if the PR was closed between the event firing and
@@ -516,7 +517,7 @@ cap, in-progress, debounce).
 ## Step 3.2: Check the review exclusions
 
 Reached when Step 3 decided a review is due, from the approval guard in
-Step 1.5, or from Step 5c after a retarget. Call
+Step 1.5, or from Step 5c when the diff changed. Call
 `lfx_one_github_pulls_list_files` and paginate until complete. Check the
 whole PR, not only a follow-up range: the exclusion covers the pull
 request. Step 4 reuses this list.
@@ -525,12 +526,15 @@ Compare the files and patches against every rule in "Review exclusions".
 GitHub omits `patch` for very large diffs. For such a file the changed
 lines cannot be seen, so read it with `lfx_one_github_repos_get_content` at
 both the merge base and `head_sha` (one side is missing for an added or
-deleted file). Get the merge base once per run from
-`lfx_one_github_repos_compare_commits` with `basehead:
-"<base.sha>...<head_sha>"` and `per_page: 1`: it is
-`merge_base_commit.sha`. `base.sha` itself is the target branch tip, not
-the commit the PR diff starts from. If the merge base is unavailable, treat
-the file as a match. If either version contains excluded code, treat it as
+deleted file). Every time this step runs, even when every file has a
+patch, get the merge base from `lfx_one_github_repos_compare_commits` with
+`basehead: "<base.sha>...<head_sha>"` and `per_page: 1`, and save it as
+`merge_base`: it is `merge_base_commit.sha`. Use `base.sha` from the most
+recent `lfx_one_github_pulls_get` call, so a rerun from Step 5c uses the
+current target. `base.sha` itself is the target branch tip, not the commit
+the PR diff starts from. Step 5c compares against `merge_base`. If the
+merge base is unavailable, leave `merge_base` unset and treat every file
+without a patch as a match. If either version contains excluded code, treat it as
 a match: the change may add, edit, or remove that code. If a read fails and
 the path could belong to an excluded area, treat it as a match.
 
@@ -1030,9 +1034,15 @@ revoked an approval and then failed to post its notice. Older revoking
 reviews do not count: they cannot be deleted, so counting them would block
 a lifted exclusion.
 
-If `base.ref` differs from `base_ref` (the PR was retargeted while this run
-reviewed, which fires an `edited` event that Step 0 ignores), run the Step
-3.2 check again on the new file list. On a match, follow Step 3.2 items 2
+**Check for a changed diff.** The PR diff can change without a new HEAD:
+a retarget fires an `edited` event that Step 0 ignores, and a merge of
+one of the PR's commits into the target branch moves the merge base. If
+`base.ref` differs from `base_ref` or `base.sha` differs from `base_sha`,
+get the merge base again as Step 3.2 does. If `base.ref` changed, the new
+merge base differs from `merge_base`, or either one is unavailable, run
+the Step 3.2 check again on the new file list, using the new merge base.
+A target branch that only moved ahead keeps the same merge base and needs
+no rerun. On a match, follow Step 3.2 items 2
 and 3 (revoke a live own approval from an earlier review, then post the
 notice with its identity check), and treat the PR as excluded instead of
 stopping at item 4.
