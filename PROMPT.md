@@ -41,8 +41,10 @@ post first. Bot comments posted later are reconciled by the next follow-up.
 Some areas need a human reviewer, not this agent. When a pull request's
 changes touch one, Step 3.2 posts an exclusion notice and stops without
 reviewing. The notice is permanent for the pull request: Step 1.5 gate A0
-stops every later run on it, including pushes and `re-review` requests. To
-lift an exclusion, a maintainer deletes the notice.
+stops every later run on it, including pushes and `re-review` requests.
+Deleting the notice makes the next run check again: Step 3.2 reviews the PR
+only if its diff no longer matches a rule, and otherwise posts the notice
+again. An excluded change always gets a human review.
 
 | Rule | Applies when the PR diff changes | Notice reason |
 | --- | --- | --- |
@@ -357,7 +359,7 @@ another review.
 
 **D. Otherwise** proceed to Step 2. The in-progress session comment is
 still not posted. That happens in Step 3.5, only if Step 3 decides a
-review is actually due.
+review is actually due and Step 3.2 finds no exclusion.
 
 ### Skip notice
 
@@ -433,7 +435,7 @@ From that filtered list:
 - If there is already a terminal own review on this PR (should not
   happen for a genuine "opened" event, but a re-delivered webhook is
   possible): stop, do not double-review.
-- Otherwise, proceed to Step 3.5 as an **initial review** (full PR diff, no
+- Otherwise, proceed to Step 3.2 as an **initial review** (full PR diff, no
   prior feedback to reconcile against).
 
 ### If the event is `synchronize`
@@ -443,7 +445,7 @@ From that filtered list:
     `abandoned_starts` is non-empty or the PR has an own `abandoned`
     comment (a Step 3.5 that closed out a start and died before posting
     its replacement) → the first review was started and never finished
-    (the run crashed or hung). Proceed to Step 3.5 as an **initial review**. This
+    (the run crashed or hung). Proceed to Step 3.2 as an **initial review**. This
     recovers a first review that the `opened` run lost.
   - If there is also no dismissed own review and there is neither an
     abandoned start nor an `abandoned` comment → stop. There is nothing to
@@ -457,7 +459,7 @@ From that filtered list:
     match, `last_reviewed_sha` is unset, or that review has no
     `commit_id`, stop. There is no new-HEAD range to follow up on, and do
     not fall back to an initial review of the whole PR. Otherwise proceed
-    to Step 3.5 as a **follow-up review**, scoped to the diff between
+    to Step 3.2 as a **follow-up review**, scoped to the diff between
     `last_reviewed_sha` and `head_sha`.
 - **Latest terminal review is `APPROVED`, `CHANGES_REQUESTED`, or
   approval-withheld**. An approval does not end the cycle: if the
@@ -470,7 +472,7 @@ From that filtered list:
   - Compare `head_sha` against `last_reviewed_sha`. If they
     match (the push didn't actually move HEAD past what was last reviewed;
     can happen with certain merge/rebase operations), stop.
-  - Otherwise, proceed to Step 3.5 as a **follow-up review**, scoped to the
+  - Otherwise, proceed to Step 3.2 as a **follow-up review**, scoped to the
     diff between `last_reviewed_sha` and `head_sha`.
 
 ### If the event is `re-review`
@@ -479,14 +481,14 @@ Someone asked for a review explicitly, so the same-SHA stops above do not
 apply. The Step 1 and Step 1.5 gates still do (closed, draft,
 cap, in-progress, debounce).
 
-- **No terminal and no dismissed own review** → proceed to Step 3.5 as
+- **No terminal and no dismissed own review** → proceed to Step 3.2 as
   an **initial review**. This recovers a dropped `opened` event.
-- **`head_sha` differs from `last_reviewed_sha`** → proceed to Step 3.5 as a
+- **`head_sha` differs from `last_reviewed_sha`** → proceed to Step 3.2 as a
   **follow-up review**, scoped to the diff between `last_reviewed_sha` and
   `head_sha`, whatever the latest verdict was. This recovers a dropped
   `synchronize` event.
 - **`head_sha` equals `last_reviewed_sha`**, or `last_reviewed_sha` is
-  unset → proceed to Step 3.5 as a fresh **initial review** of the whole PR.
+  unset → proceed to Step 3.2 as a fresh **initial review** of the whole PR.
 
 ## Step 3.2: Check the review exclusions
 
@@ -496,7 +498,8 @@ whole PR, not only a follow-up range: the exclusion covers the pull request.
 Step 4 reuses this list.
 
 Compare the files and patches against every rule in "Review exclusions".
-If none matches, proceed to Step 3.5. If one or more match:
+If none matches, proceed to Step 3.5 with the review type (initial or
+follow-up) and scope that Step 3 chose. If one or more match:
 
 1. Close out `abandoned_starts` as Step 3.5 item 0 describes, so no stale
    start comment is left behind.
@@ -509,7 +512,7 @@ If none matches, proceed to Step 3.5. If one or more match:
 
    ```text
    <!-- lfx-review-agent:excluded rule=<rule>[,<rule>] -->
-   I approved an earlier commit of this pull request. The changes now <reason>, which needs a human review, so this review replaces my approval. A maintainer should review the pull request, then dismiss this review or approve it.
+   I approved an earlier commit of this pull request. The changes now <reason>, which needs a human review, so this review replaces my approval. I won't review this pull request again, so approving it does not clear this review. When satisfied, a maintainer should dismiss this review, and approve the pull request if branch protection requires it.
    ```
 
    The body has no `<!-- lfx-review-agent:review -->` marker, so Step 2

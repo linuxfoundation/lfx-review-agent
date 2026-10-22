@@ -42,7 +42,8 @@ downloads. When a PR touches a listed area, the agent posts a note saying
 why it won't review the PR and skips every later push and re-review
 request on it. If it had approved an earlier commit, it replaces that
 approval with a "changes requested" review so the PR can't merge without a
-human. A maintainer can lift the exclusion by deleting that note.
+human. Deleting that note makes the agent check again on the next event; it
+reviews the PR only if the PR no longer changes an excluded area.
 
 ## When it runs
 
