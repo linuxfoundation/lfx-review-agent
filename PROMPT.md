@@ -519,10 +519,15 @@ covers the pull request. Step 4 reuses this list.
 Compare the files and patches against every rule in "Review exclusions".
 GitHub omits `patch` for very large diffs. For such a file the changed
 lines cannot be seen, so read it with `lfx_one_github_repos_get_content` at
-both `base.sha` and `head_sha` (one side is missing for an added or deleted
-file). If either version contains excluded code, treat it as a match: the
-change may add, edit, or remove that code. If a read fails and the path
-could belong to an excluded area, treat it as a match.
+both the merge base and `head_sha` (one side is missing for an added or
+deleted file). Get the merge base once per run from
+`lfx_one_github_repos_compare_commits` with `basehead:
+"<base.sha>...<head_sha>"` and `per_page: 1`: it is
+`merge_base_commit.sha`. `base.sha` itself is the target branch tip, not
+the commit the PR diff starts from. If the merge base is unavailable, treat
+the file as a match. If either version contains excluded code, treat it as
+a match: the change may add, edit, or remove that code. If a read fails and
+the path could belong to an excluded area, treat it as a match.
 
 If none matches, a run from Step 3 proceeds to Step 3.5 with the review
 type (initial or follow-up) and scope that Step 3 chose, and a run from the
@@ -1007,6 +1012,16 @@ later run closes out this comment, because Step 1 stops on a PR that is
 not open. If the PR is reopened, the `abandoned` marker keeps review N out
 of the cap. If the update fails, say so in Step 7. Then go to Step 7.
 
+**Check for an exclusion.** Another run can exclude the PR while this one
+reviews (Step 1.5 approval guard), for example after the base branch is
+retargeted. Call `lfx_one_github_issues_list_comments` and paginate until
+complete. If an own comment (`user.login == "{{env.REVIEWER_LOGIN}}"`) is
+an `exclusion-notice`, do not submit a review, and skip Step 6. Replace
+this run's session comment body with
+`<!-- lfx-review-agent:abandoned review=<N> started=<ISO-8601> -->`, then
+one line: `This pull request was excluded from auto-review before review
+<N> finished, so no review was posted.` Then go to Step 7.
+
 If `head.sha` still equals `head_sha`, submit as below. If it differs
 (`head_moved`):
 
@@ -1173,9 +1188,11 @@ without reviewing, state plainly which condition applied and take no further
 action. For a run that stopped at Step 3.2, report
 `Review not started: excluded (<rule>[,<rule>])`, link the exclusion
 notice, and say whether an earlier approval was revoked (with the review's
-`html_url`). For a run that stopped at Step 5c with `pr_closed`, report
-`Review not posted: PR <merged|closed> during review`, link the PR and the
-closed-out session comment, and say whether the comment update succeeded.
+`html_url`). For a run that stopped at Step 5c because the PR was merged,
+closed, or excluded, report
+`Review not posted: PR <merged|closed|excluded> during review`, link the PR
+and the closed-out session comment, and say whether the comment update
+succeeded.
 
 ## Error handling
 
