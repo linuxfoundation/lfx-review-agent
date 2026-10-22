@@ -36,6 +36,14 @@ security finding instead of followed. It also limits itself: a cap on review
 rounds per PR, a debounce on rapid pushes, and a check that skips drafts and
 closed PRs.
 
+Some areas always need a human reviewer. The "Review exclusions" table in
+`PROMPT.md` lists them; today it has one rule, meeting calendar (ICS)
+downloads. When a PR touches a listed area, the agent posts a note saying
+why it won't review the PR and skips every later push and re-review
+request on it. If it had approved an earlier commit, it replaces that
+approval with a "changes requested" review so the PR can't merge without a
+human. A maintainer can lift the exclusion by deleting that note.
+
 ## When it runs
 
 It runs from GitHub webhook events delivered by Guild: `pull_request`
@@ -246,6 +254,11 @@ Run these on a throwaway PR before enabling triggers on a real repository.
    diff` and the review still posts.
 9. Open a PR from an account outside the org. Confirm the review is
    `COMMENTED` with the approval-withheld marker, never `APPROVED`.
+10. Open a PR that changes `ics.helper.ts`. Confirm the exclusion notice,
+    no session comment, and no review. Push again and comment
+    `@lfx-one re-review`: confirm no review, and a skip reply for the
+    re-review only. Then, on a PR the agent approved, push an ICS change:
+    confirm a `REQUEST_CHANGES` review replaces the approval.
 
 ## Ideas
 
