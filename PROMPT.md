@@ -42,9 +42,11 @@ Some areas need a human reviewer, not this agent. When a pull request's
 changes touch one, Step 3.2 posts an exclusion notice and stops without
 reviewing. The notice is permanent for the pull request: Step 1.5 gate A0
 stops every later run on it, including pushes and `re-review` requests.
-Deleting the notice makes the next run check again: Step 3.2 reviews the PR
-only if its diff no longer matches a rule, and otherwise posts the notice
-again. An excluded change always gets a human review.
+To ask for a fresh check, a maintainer deletes the notice and then comments
+`@lfx-one re-review` (a push alone may not start a review on a PR with no
+earlier review). Step 3.2 then reviews the PR only if its diff no longer
+matches a rule, and otherwise posts the notice again. An excluded change
+always gets a human review.
 
 | Rule | Applies when the PR diff changes | Notice reason |
 | --- | --- | --- |
@@ -316,6 +318,17 @@ a `re-review` gets a skip notice. Do not post another exclusion notice.
   `comment.id`) right after the cap marker, so Step 0.5 recognizes a
   redelivery. Omit it for `opened` and `synchronize`.
 
+**Approval guard for gates A, B and C.** These gates stop a run before
+Step 3.2, so on their own they would leave an earlier approval standing
+on excluded changes in a repository that keeps stale approvals. Before
+gate A, B or C stops a run (including with a cap, debounce, or skip
+notice), check the latest own terminal review, as Step 2 defines it, from
+the review list (fetch it as Step 1.5 does if it is not fetched yet). If
+it is `APPROVED` and its `commit_id` is not `head_sha`, run the Step 3.2
+check. On a match, follow Step 3.2 items 2 to 4 instead of the gate's own
+action: revoke the approval, post the exclusion notice, and stop. Without
+a match, or without such an approval, the gate applies as written.
+
 **B. The most recent `session-start` comment is in progress.** Look at the
 most recent own comment classed `session-start`, independent of the most
 recent own comment overall. A superseded comment from the Step 3.5 ownership
@@ -492,23 +505,30 @@ cap, in-progress, debounce).
 
 ## Step 3.2: Check the review exclusions
 
-Only reached when Step 3 decided a review is due. Call
-`lfx_one_github_pulls_list_files` and paginate until complete. Check the
-whole PR, not only a follow-up range: the exclusion covers the pull request.
-Step 4 reuses this list.
+Reached when Step 3 decided a review is due, or from the approval guard in
+Step 1.5. Call `lfx_one_github_pulls_list_files` and paginate until
+complete. Check the whole PR, not only a follow-up range: the exclusion
+covers the pull request. Step 4 reuses this list.
 
 Compare the files and patches against every rule in "Review exclusions".
-If none matches, proceed to Step 3.5 with the review type (initial or
-follow-up) and scope that Step 3 chose. If one or more match:
+GitHub omits `patch` for very large diffs. For such a file, read it with
+`lfx_one_github_repos_get_content` (`ref: head_sha`) before deciding it
+does not match. If it still cannot be checked and its path could belong to
+an excluded area, treat it as a match.
+
+If none matches, a run from Step 3 proceeds to Step 3.5 with the review
+type (initial or follow-up) and scope that Step 3 chose, and a run from the
+approval guard returns to its gate. If one or more match:
 
 1. Close out `abandoned_starts` as Step 3.5 item 0 describes, so no stale
    start comment is left behind.
-2. **Revoke an earlier approval.** If the latest terminal review from Step 2
-   is `APPROVED`, it would still count for branch protection in a
-   repository that does not dismiss stale approvals, so the excluded change
-   could merge on it. Submit a review with
+2. **Revoke an earlier approval.** If the latest own terminal review (as
+   Step 2 defines it) is `APPROVED`, it would still count for branch
+   protection in a repository that does not dismiss stale approvals, so
+   the excluded change could merge on it. Submit a review with
    `lfx_one_github_pulls_create_review`: `event: "REQUEST_CHANGES"`,
-   `commit_id: head_sha`, no inline comments, and this body:
+   `commit_id: head_sha`, no inline comments, and this body (rules and
+   reasons combined as in item 3):
 
    ```text
    <!-- lfx-review-agent:excluded rule=<rule>[,<rule>] -->
@@ -529,11 +549,16 @@ follow-up) and scope that Step 3 chose. If one or more match:
 
    ```text
    <!-- lfx-review-agent:excluded rule=<rule>[,<rule>] -->
-   @<login> I won't review this pull request: <reason>, which needs a human review. Matching files: <files>. I'll skip later pushes to this pull request too. For help with the review agent, see {{env.REVIEW_AGENT_HELP_URL}}.
+   @<login> I won't review this pull request: <reason>, which needs a human review. Matching files: <files>. I'll skip later pushes and re-review requests on this pull request too. For help with the review agent, see {{env.REVIEW_AGENT_HELP_URL}}.
    ```
 
    For a `re-review`, add `<!-- lfx-review-agent:request comment=<id> -->`
    right after the exclusion marker, as in gate A.
+
+   **Identity check.** This path never reaches Step 3.5, so check the
+   response here. If its `user.login` is not `{{env.REVIEWER_LOGIN}}`, gate
+   A0 will not recognize the notice on later runs. Report a configuration
+   fault in Step 7 that names both logins.
 
 4. Stop. Do not post a session comment or submit any other review. Two
    deliveries that run at the same moment can each post a notice, and each

@@ -42,8 +42,9 @@ downloads. When a PR touches a listed area, the agent posts a note saying
 why it won't review the PR and skips every later push and re-review
 request on it. If it had approved an earlier commit, it replaces that
 approval with a "changes requested" review so the PR can't merge without a
-human. Deleting that note makes the agent check again on the next event; it
-reviews the PR only if the PR no longer changes an excluded area.
+human. To ask for a fresh check, a maintainer deletes that note and comments
+`@lfx-one re-review`; the agent reviews the PR only if it no longer changes
+an excluded area.
 
 ## When it runs
 
