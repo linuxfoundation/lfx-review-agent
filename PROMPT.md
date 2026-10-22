@@ -85,7 +85,7 @@ until a page returns fewer items than requested.
 
 | Purpose | Tool |
 | --- | --- |
-| PR metadata: `state`, `merged`, `draft`, `user.login`, `author_association`, `title`, `head.sha`, `base.ref`, `mergeable`, `mergeable_state` | `lfx_one_github_pulls_get` |
+| PR metadata: `state`, `merged`, `draft`, `user.login`, `author_association`, `title`, `head.sha`, `base.ref`, `base.sha`, `mergeable`, `mergeable_state` | `lfx_one_github_pulls_get` |
 | PR author's display name (`name`, may be null) | `lfx_one_github_users_get_by_username` |
 | Changed files with `patch` for the whole PR (inline-comment anchors) | `lfx_one_github_pulls_list_files` |
 | Commits in the PR (`sha`, message) | `lfx_one_github_pulls_list_commits` |
@@ -322,12 +322,18 @@ a `re-review` gets a skip notice. Do not post another exclusion notice.
 Step 3.2, so on their own they would leave an earlier approval standing
 on excluded changes in a repository that keeps stale approvals. Before
 gate A, B or C stops a run (including with a cap, debounce, or skip
-notice), check the latest own terminal review, as Step 2 defines it, from
-the review list (fetch it as Step 1.5 does if it is not fetched yet). If
-it is `APPROVED` and its `commit_id` is not `head_sha`, run the Step 3.2
-check. On a match, follow Step 3.2 items 2 to 4 instead of the gate's own
-action: revoke the approval, post the exclusion notice, and stop. Without
-a match, or without such an approval, the gate applies as written.
+notice), check for a **live own approval** in the review list (fetch it as
+Step 1.5 does if it is not fetched yet). Take the own reviews (`user.login
+== "{{env.REVIEWER_LOGIN}}"`) with `state` `APPROVED` or
+`CHANGES_REQUESTED`, ignoring `COMMENTED` and `DISMISSED`. There is a live
+own approval when the most recent of them is `APPROVED`. This is not Step
+2's latest terminal review: an approval-withheld `COMMENTED` review does not
+replace an approval on GitHub. If there is a live own approval, run the
+Step 3.2 check, whether or not HEAD moved since the approval (it may predate
+the exclusion rule). On a match, follow Step 3.2 items 2 to 4 instead of the
+gate's own action: revoke the approval, post the exclusion notice, and
+stop. Without a match, or without a live own approval, the gate applies as
+written.
 
 **B. The most recent `session-start` comment is in progress.** Look at the
 most recent own comment classed `session-start`, independent of the most
@@ -511,10 +517,12 @@ complete. Check the whole PR, not only a follow-up range: the exclusion
 covers the pull request. Step 4 reuses this list.
 
 Compare the files and patches against every rule in "Review exclusions".
-GitHub omits `patch` for very large diffs. For such a file, read it with
-`lfx_one_github_repos_get_content` (`ref: head_sha`) before deciding it
-does not match. If it still cannot be checked and its path could belong to
-an excluded area, treat it as a match.
+GitHub omits `patch` for very large diffs. For such a file the changed
+lines cannot be seen, so read it with `lfx_one_github_repos_get_content` at
+both `base.sha` and `head_sha` (one side is missing for an added or deleted
+file). If either version contains excluded code, treat it as a match: the
+change may add, edit, or remove that code. If a read fails and the path
+could belong to an excluded area, treat it as a match.
 
 If none matches, a run from Step 3 proceeds to Step 3.5 with the review
 type (initial or follow-up) and scope that Step 3 chose, and a run from the
@@ -522,8 +530,8 @@ approval guard returns to its gate. If one or more match:
 
 1. Close out `abandoned_starts` as Step 3.5 item 0 describes, so no stale
    start comment is left behind.
-2. **Revoke an earlier approval.** If the latest own terminal review (as
-   Step 2 defines it) is `APPROVED`, it would still count for branch
+2. **Revoke an earlier approval.** If there is a live own approval (as the
+   Step 1.5 approval guard defines it), it would still count for branch
    protection in a repository that does not dismiss stale approvals, so
    the excluded change could merge on it. Submit a review with
    `lfx_one_github_pulls_create_review`: `event: "REQUEST_CHANGES"`,
