@@ -191,7 +191,8 @@ fails, continue: the reaction is best effort.
 ## Step 1: Fetch PR metadata and apply the standing skips
 
 Call `lfx_one_github_pulls_get` for the triggering PR. Set `head_sha` to its
-`head.sha`; this is the commit this run reviews.
+`head.sha`; this is the commit this run reviews. Set `base_ref` to its
+`base.ref`; Step 5c uses it to detect a retarget.
 
 1. **Not open** (`state` is not `open`, or `merged: true`) → stop. Nothing
    to do; this can happen if the PR was closed between the event firing and
@@ -324,16 +325,19 @@ on excluded changes in a repository that keeps stale approvals. Before
 gate A, B or C stops a run (including with a cap, debounce, or skip
 notice), check for a **live own approval** in the review list (fetch it as
 Step 1.5 does if it is not fetched yet). Take the own reviews (`user.login
-== "{{env.REVIEWER_LOGIN}}"`) with `state` `APPROVED` or
-`CHANGES_REQUESTED`, ignoring `COMMENTED` and `DISMISSED`. There is a live
-own approval when the most recent of them is `APPROVED`. This is not Step
-2's latest terminal review: an approval-withheld `COMMENTED` review does not
-replace an approval on GitHub. If there is a live own approval, run the
-Step 3.2 check, whether or not HEAD moved since the approval (it may predate
-the exclusion rule). On a match, follow Step 3.2 items 2 to 4 instead of the
-gate's own action: revoke the approval, post the exclusion notice, and
-stop. Without a match, or without a live own approval, the gate applies as
-written.
+== "{{env.REVIEWER_LOGIN}}"`) whose `body` contains
+`<!-- lfx-review-agent:review -->` or `<!-- lfx-review-agent:excluded`
+(the Step 3.2 revoking review), with `state` `APPROVED` or
+`CHANGES_REQUESTED`, ignoring `COMMENTED` and `DISMISSED`. As in Step 2,
+the markers keep out reviews by other tools that share the credential.
+There is a live own approval when the most recent of them is `APPROVED`.
+This is not Step 2's latest terminal review: an approval-withheld
+`COMMENTED` review does not replace an approval on GitHub. If there is a
+live own approval, run the Step 3.2 check, whether or not HEAD moved
+since the approval (it may predate the exclusion rule). On a match, follow
+Step 3.2 items 2 to 4 instead of the gate's own action: revoke the
+approval, post the exclusion notice, and stop. Without a match, or without
+a live own approval, the gate applies as written.
 
 **B. The most recent `session-start` comment is in progress.** Look at the
 most recent own comment classed `session-start`, independent of the most
@@ -511,10 +515,11 @@ cap, in-progress, debounce).
 
 ## Step 3.2: Check the review exclusions
 
-Reached when Step 3 decided a review is due, or from the approval guard in
-Step 1.5. Call `lfx_one_github_pulls_list_files` and paginate until
-complete. Check the whole PR, not only a follow-up range: the exclusion
-covers the pull request. Step 4 reuses this list.
+Reached when Step 3 decided a review is due, from the approval guard in
+Step 1.5, or from Step 5c after a retarget. Call
+`lfx_one_github_pulls_list_files` and paginate until complete. Check the
+whole PR, not only a follow-up range: the exclusion covers the pull
+request. Step 4 reuses this list.
 
 Compare the files and patches against every rule in "Review exclusions".
 GitHub omits `patch` for very large diffs. For such a file the changed
@@ -531,7 +536,8 @@ the path could belong to an excluded area, treat it as a match.
 
 If none matches, a run from Step 3 proceeds to Step 3.5 with the review
 type (initial or follow-up) and scope that Step 3 chose, and a run from the
-approval guard returns to its gate. If one or more match:
+approval guard or from Step 5c returns to where it came from. If one or
+more match:
 
 1. Close out `abandoned_starts` as Step 3.5 item 0 describes, so no stale
    start comment is left behind.
@@ -1014,9 +1020,24 @@ of the cap. If the update fails, say so in Step 7. Then go to Step 7.
 
 **Check for an exclusion.** Another run can exclude the PR while this one
 reviews (Step 1.5 approval guard), for example after the base branch is
-retargeted. Call `lfx_one_github_issues_list_comments` and paginate until
-complete. If an own comment (`user.login == "{{env.REVIEWER_LOGIN}}"`) is
-an `exclusion-notice`, do not submit a review, and skip Step 6. Replace
+retargeted. Call `lfx_one_github_issues_list_comments` and
+`lfx_one_github_pulls_list_reviews`, and paginate both until complete. The
+PR is excluded if an own comment (`user.login ==
+"{{env.REVIEWER_LOGIN}}"`) is an `exclusion-notice`, or if an own review
+whose `body` contains `<!-- lfx-review-agent:excluded` has `submitted_at`
+at or after this run's `started`. The review check covers a run that
+revoked an approval and then failed to post its notice. Older revoking
+reviews do not count: they cannot be deleted, so counting them would block
+a lifted exclusion.
+
+If `base.ref` differs from `base_ref` (the PR was retargeted while this run
+reviewed, which fires an `edited` event that Step 0 ignores), run the Step
+3.2 check again on the new file list. On a match, follow Step 3.2 items 2
+and 3 (revoke a live own approval from an earlier review, then post the
+notice with its identity check), and treat the PR as excluded instead of
+stopping at item 4.
+
+If the PR is excluded, do not submit a review, and skip Step 6. Replace
 this run's session comment body with
 `<!-- lfx-review-agent:abandoned review=<N> started=<ISO-8601> -->`, then
 one line: `This pull request was excluded from auto-review before review

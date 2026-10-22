@@ -261,6 +261,8 @@ Run these on a throwaway PR before enabling triggers on a real repository.
     `@lfx-one re-review`: confirm no review, and a skip reply for the
     re-review only. Then, on a PR the agent approved, push an ICS change:
     confirm a `REQUEST_CHANGES` review replaces the approval.
+11. On the excluded PR, revert the ICS change, delete the exclusion notice,
+    and comment `@lfx-one re-review`. Confirm a normal review runs.
 
 ## Ideas
 
