@@ -44,7 +44,7 @@ for arg in "$@"; do
     exit 2
   fi
   repo=linuxfoundation/${arg#linuxfoundation/}
-  [[ " ${repos[*]} " == *" $repo "* ]] || repos+=("$repo")
+  [[ " ${repos[*]-} " == *" $repo "* ]] || repos+=("$repo")
 done
 
 # Read every page of the workspace's triggers into one JSON array.
