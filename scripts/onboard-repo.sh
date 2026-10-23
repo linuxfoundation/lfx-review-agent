@@ -34,7 +34,27 @@ if [ $# -eq 0 ]; then
 fi
 command -v jq >/dev/null || { echo "jq is required" >&2; exit 1; }
 
-existing=$(guild --mode json trigger list --workspace "$WS" --limit 200)
+# Check every argument before creating anything, so a typo cannot stop a
+# multi-repo run partway.
+for arg in "$@"; do
+  if [[ ! $arg =~ ^(linuxfoundation/)?[A-Za-z0-9._-]+$ ]]; then
+    echo "not a linuxfoundation repository name: $arg" >&2
+    exit 2
+  fi
+done
+
+# Read every page of the workspace's triggers into one JSON array.
+PAGE=100
+existing="[]"
+offset=0
+while :; do
+  page=$(guild --mode json trigger list --workspace "$WS" \
+    --limit "$PAGE" --offset "$offset")
+  existing=$(printf '%s\n%s' "$existing" "$page" | jq -c -s '.[0] + [.[1].items[]
+    | {repo: .service_config.repo, event: .event_type, action, agent: .agent.full_name}]')
+  [ "$(jq -r '.pagination.has_more' <<<"$page")" = true ] || break
+  offset=$((offset + PAGE))
+done
 
 for arg in "$@"; do
   repo=linuxfoundation/${arg#linuxfoundation/}
@@ -42,8 +62,10 @@ for arg in "$@"; do
     read -r event action suffix <<<"$t"
     name="lfx-review-agent ${repo#*/} $suffix"
     found=$(jq -r --arg r "$repo" --arg e "$event" --arg a "$action" \
-      '[.items[] | select(.service_config.repo == $r and .event_type == $e
-        and .action == $a)] | length' <<<"$existing")
+      --arg ag "$AGENT" \
+      '[.[] | select(.repo == $r and .event == $e and .action == $a
+        and .agent == $ag)] | length' \
+      <<<"$existing")
     if [ "$found" != 0 ]; then
       echo "skip    $name (exists)"
       continue

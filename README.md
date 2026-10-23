@@ -158,8 +158,9 @@ must be unique within the workspace.
 | `issue_comment` | `created` | `lfx-review-agent <repo> re-review comment` | a review on `@lfx-one re-review` |
 
 `scripts/onboard-repo.sh` creates them. It takes one or more repository
-names and skips any trigger that already exists, matched on repository,
-event and action, so it is safe to run again. It needs `jq`.
+names, checks them all before creating anything, and skips any trigger
+that already exists for this agent, matched on repository, event, action
+and agent, so it is safe to run again. It needs `jq`.
 
 ```bash
 WS=<workspace-id> scripts/onboard-repo.sh lfx-v2-example-service lfx-v2-other-service
