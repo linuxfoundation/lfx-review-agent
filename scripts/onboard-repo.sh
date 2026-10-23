@@ -35,12 +35,16 @@ fi
 command -v jq >/dev/null || { echo "jq is required" >&2; exit 1; }
 
 # Check every argument before creating anything, so a typo cannot stop a
-# multi-repo run partway.
+# multi-repo run partway. Drop repeats, so "x" and "linuxfoundation/x" in
+# one run do not create the same triggers twice.
+repos=()
 for arg in "$@"; do
   if [[ ! $arg =~ ^(linuxfoundation/)?[A-Za-z0-9._-]+$ ]]; then
     echo "not a linuxfoundation repository name: $arg" >&2
     exit 2
   fi
+  repo=linuxfoundation/${arg#linuxfoundation/}
+  [[ " ${repos[*]} " == *" $repo "* ]] || repos+=("$repo")
 done
 
 # Read every page of the workspace's triggers into one JSON array.
@@ -56,8 +60,7 @@ while :; do
   offset=$((offset + PAGE))
 done
 
-for arg in "$@"; do
-  repo=linuxfoundation/${arg#linuxfoundation/}
+for repo in "${repos[@]}"; do
   for t in "${TRIGGERS[@]}"; do
     read -r event action suffix <<<"$t"
     name="lfx-review-agent ${repo#*/} $suffix"
