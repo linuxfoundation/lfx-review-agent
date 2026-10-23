@@ -49,7 +49,7 @@ an excluded area.
 ## When it runs
 
 It runs from GitHub webhook events delivered by Guild: `pull_request`
-(`opened`, `synchronize`) and `issue_comment` (`created`, with
+(`opened`, `synchronize`, `ready_for_review`) and `issue_comment` (`created`, with
 `@lfx-one re-review` on a PR). The setup commands are in the Triggers
 section below.
 
@@ -72,8 +72,9 @@ ID) stays untracked, as Guild's `.git/info/exclude` sets up; the agent is
 
 A Native agent has no clock and cannot run commands. The prompt uses the
 webhook's own timestamp as "now" for the whole run: `pull_request.updated_at`
-for `opened` / `synchronize`, and `comment.created_at` for `re-review`. That
-value drives the Step 1.5 age checks and the `started` field in Step 3.5.
+for `opened` / `synchronize` / `ready_for_review`, and `comment.created_at`
+for `re-review`. That value drives the Step 1.5 age checks and the `started`
+field in Step 3.5.
 
 ### Fallback: custom time integration
 
@@ -121,7 +122,7 @@ events for repositories it can see, so before creating triggers:
   repository even when the app is installed. A trigger created with the CLI
   is not checked against that list, and it fires normally.
 
-Create three webhook triggers, each scoped to one repository with
+Create four webhook triggers, each scoped to one repository with
 `--service-config` and leaving `agent_input` empty so the raw payload is
 forwarded. Trigger names must be unique within the workspace. Repeat per
 repository.
@@ -130,7 +131,7 @@ repository.
 WS=<workspace-id>
 REPO=linuxfoundation/<repo>
 
-for action in opened synchronize; do
+for action in opened synchronize ready_for_review; do
   guild trigger create \
     --workspace "$WS" \
     --type webhook \
@@ -152,6 +153,13 @@ guild trigger create \
   --name "lfx-review-agent ${REPO##*/} re-review comment" \
   --service-config "{\"repo\": \"$REPO\"}"
 ```
+
+Without the `ready_for_review` trigger, a PR opened as a draft gets no
+review until someone comments `@lfx-one re-review`, and commits pushed
+while a PR is a draft are never reviewed, so an earlier approval stays in
+place. To add it to a repository onboarded with only the other three
+triggers, run the loop above with just `ready_for_review`. `guild trigger
+list --workspace "$WS"` shows which repositories have it.
 
 Create triggers only for repositories the `lfx-one` token covers. A trigger
 on any other repository fails its first GitHub read, and the session stops
@@ -263,6 +271,13 @@ Run these on a throwaway PR before enabling triggers on a real repository.
     confirm a `REQUEST_CHANGES` review replaces the approval.
 11. On the excluded PR, revert the ICS change, delete the exclusion notice,
     and comment `@lfx-one re-review`. Confirm a normal review runs.
+12. Open a PR as a draft. Confirm no review. Mark it ready for review and
+    confirm a session appears for the `ready_for_review` trigger
+    (`guild trigger sessions <id>`), the payload carries
+    `pull_request.updated_at` and `number`, and an initial review runs.
+    Then, on a PR the agent approved, convert it to draft, push a commit,
+    and mark it ready again: confirm a follow-up review scoped to that
+    commit.
 
 ## Ideas
 

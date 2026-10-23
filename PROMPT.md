@@ -26,6 +26,9 @@ triggers (see Step 0 for how each one is recognized):
 - **`pull_request` / `opened`** → run the initial review.
 - **`pull_request` / `synchronize`** (commits pushed) → run a follow-up
   review if one is due.
+- **`pull_request` / `ready_for_review`** (a draft marked ready) → run the
+  initial review if none ran yet, or a follow-up of the commits pushed
+  while the PR was a draft.
 - **`issue_comment` / `created`** with `@lfx-one re-review` on a pull
   request → run an on-demand review (recovers a dropped webhook, or reviews
   again on request).
@@ -111,6 +114,8 @@ below from the payload. Do not re-discover the PR via list or search tools.
   `action == "opened"`.
 - **`synchronize`**: the payload has a `pull_request` object and
   `action == "synchronize"`.
+- **`ready_for_review`**: the payload has a `pull_request` object and
+  `action == "ready_for_review"`.
 - **`re-review`**: the payload has `comment` and `issue` objects and
   `action == "created"`. Run it only when **all** of these hold; otherwise
   stop silently:
@@ -133,7 +138,7 @@ below from the payload. Do not re-discover the PR via list or search tools.
 
 ### Extract the run values
 
-| Value | `opened` / `synchronize` | `re-review` |
+| Value | `opened` / `synchronize` / `ready_for_review` | `re-review` |
 | --- | --- | --- |
 | `owner` | `repository.owner.login` | `repository.owner.login` |
 | `repo` | `repository.name` | `repository.name` |
@@ -159,8 +164,8 @@ event, or a re-delivered old event), treat the age as 0.
 
 ## Step 0.5: Verify and acknowledge a re-review request
 
-Run this only for a `re-review` event. For `opened` and `synchronize`, go
-to Step 1.
+Run this only for a `re-review` event. For `opened`, `synchronize` and
+`ready_for_review`, go to Step 1.
 
 Call `lfx_one_github_issues_list_comments` for the PR and paginate until the
 list is complete. Step 1.5 reuses this list.
@@ -199,10 +204,9 @@ retarget or a target branch change.
    to do; this can happen if the PR was closed between the event firing and
    this run starting. For a `re-review`, post a skip notice first (see
    "Skip notice" in Step 1.5).
-2. **Draft** (`draft: true`) → stop. Marking a PR ready for review is a
-   separate event (`pull_request` / `ready_for_review`) that this agent does
-   not listen for. The author can comment `@lfx-one re-review` once the PR
-   is ready. For a `re-review`, post a skip notice first.
+2. **Draft** (`draft: true`) → stop. Marking the PR ready for review fires
+   a `ready_for_review` event, which reviews what was skipped here. For a
+   `re-review`, post a skip notice first.
 3. Otherwise, proceed to Step 1.5.
 
 ## Step 1.5: Startup comment gates (early exits)
@@ -318,7 +322,7 @@ a `re-review` gets a skip notice. Do not post another exclusion notice.
   break; a human review is the next step. For a `re-review`, add the line
   `<!-- lfx-review-agent:request comment=<id> -->` (`<id>` is
   `comment.id`) right after the cap marker, so Step 0.5 recognizes a
-  redelivery. Omit it for `opened` and `synchronize`.
+  redelivery. Omit it for `opened`, `synchronize` and `ready_for_review`.
 
 **Approval guard for gates A, B and C.** These gates stop a run before
 Step 3.2, so on their own they would leave an earlier approval standing
@@ -360,7 +364,10 @@ PRs have taken over 30 minutes, so a shorter limit would close out a run
 that is still working.
 
 **C. Most recent own comment is younger than 5 minutes.** Do not start
-another review.
+another review. Skip this gate for `ready_for_review`: the event fires once
+per transition, so a debounce would lose it (for example, after a skip
+notice on a draft), and Step 3 already stops when HEAD has not moved since
+the last review.
 
 - If it is a `session-summary` (or other review feedback: preview
   disclaimer, or a "Final decision" line from Step 6), post one
@@ -393,7 +400,7 @@ requester would otherwise see nothing more. Post one short reply with
 `lfx_one_github_issues_create_comment`. Do not post one when this run just
 posted the cap notice (gate A), the debounce notice (gate C), or the
 exclusion notice (Step 3.2): that comment already says why. Never post one
-for `opened` or `synchronize`.
+for `opened`, `synchronize` or `ready_for_review`.
 
 Step 0.5 already stopped a redelivered request that has a reply, so no
 duplicate check is needed here. Use `comment.id` for `<id>` and the
@@ -410,7 +417,7 @@ accepted.
 | Stopped at | `<reason>` |
 | --- | --- |
 | Step 1, not open | this pull request is closed or merged. |
-| Step 1, draft | this pull request is a draft. Mark it ready for review, then ask again. |
+| Step 1, draft | this pull request is a draft. Marking it ready for review starts a review. |
 | Gate A0 | this pull request changes an area that needs a human review (see my earlier note), so I don't review it. |
 | Gate A | this pull request already had 10 auto-reviews, the maximum for this automation. Further review should be manual. |
 | Gate B | a review is already running. Its report will replace the "starting review" comment when it finishes. If nothing appears in about 45 minutes, ask again. |
@@ -474,7 +481,8 @@ From that filtered list:
   - If there is also no dismissed own review and there is neither an
     abandoned start nor an `abandoned` comment → stop. There is nothing to
     follow up on; this PR is still waiting on its first review, which only
-    the `opened` event or a `re-review` comment initiates. (If `opened`
+    the `opened` or `ready_for_review` event or a `re-review` comment
+    initiates. (If `opened`
     never fired, the author can comment `@lfx-one re-review`. A
     `COMMENTED` review alone does not count as a first review.)
   - If there *is* a dismissed own review: this is a follow-up, not a
@@ -498,6 +506,21 @@ From that filtered list:
     can happen with certain merge/rebase operations), stop.
   - Otherwise, proceed to Step 3.2 as a **follow-up review**, scoped to the
     diff between `last_reviewed_sha` and `head_sha`.
+
+### If the event is `ready_for_review`
+
+The PR was a draft until now, so Step 1 stopped every `opened` and
+`synchronize` run while it was one.
+
+- **No terminal and no dismissed own review** → proceed to Step 3.2 as an
+  **initial review**. This is the first review of a PR opened as a draft.
+- **Otherwise**, compare `head_sha` against `last_reviewed_sha`. If they
+  match, `last_reviewed_sha` is unset, or that review has no `commit_id`,
+  stop: nothing was pushed since the last review, and its verdict stands.
+  Otherwise proceed to Step 3.2 as a **follow-up review**, scoped to the
+  diff between `last_reviewed_sha` and `head_sha`. This covers commits
+  pushed while the PR was a draft, including any that touch an excluded
+  area after an approval.
 
 ### If the event is `re-review`
 
