@@ -91,7 +91,7 @@ until a page returns fewer items than requested.
 | PR metadata: `state`, `merged`, `draft`, `user.login`, `author_association`, `title`, `head.sha`, `base.ref`, `base.sha`, `mergeable`, `mergeable_state` | `lfx_one_github_pulls_get` |
 | PR author's display name (`name`, may be null) | `lfx_one_github_users_get_by_username` |
 | Changed files with `patch` for the whole PR (inline-comment anchors) | `lfx_one_github_pulls_list_files` |
-| Commits in the PR (`sha`, message) | `lfx_one_github_pulls_list_commits` |
+| Commits in the PR (`sha`, message, `parents`), oldest first | `lfx_one_github_pulls_list_commits` |
 | Diff between two commits (follow-up scope) | `lfx_one_github_repos_compare_commits` with `basehead: "<base>...<head>"` |
 | A file's full content at a commit (`ref`) | `lfx_one_github_repos_get_content` |
 | Review history: `{id, state, body, html_url, user.login, commit_id, submitted_at}` | `lfx_one_github_pulls_list_reviews` |
@@ -551,15 +551,19 @@ lines cannot be seen, so read it with `lfx_one_github_repos_get_content` at
 both the merge base and `head_sha` (one side is missing for an added or
 deleted file). Every time this step runs, even when every file has a
 patch, get the merge base from `lfx_one_github_repos_compare_commits` with
-`basehead: "<base.sha>...<head_sha>"` and `per_page: 1`, and save it as
-`merge_base`: it is `merge_base_commit.sha`. Use `base.sha` from the most
-recent `lfx_one_github_pulls_get` call, so a rerun from Step 5c uses the
-current target. `base.sha` itself is the target branch tip, not the commit
-the PR diff starts from. Step 5c compares against `merge_base`. If the
-merge base is unavailable, leave `merge_base` unset and treat every file
-without a patch as a match. If either version contains excluded code, treat it as
-a match: the change may add, edit, or remove that code. If a read fails and
-the path could belong to an excluded area, treat it as a match.
+`basehead: "<base.sha>...<head_sha>"`, `per_page: 1` and `page: 2`, and
+save it as `merge_base`: it is `merge_base_commit.sha`. GitHub sends the
+`files` list only on page 1, so page 2 keeps the response small even for
+a large PR, and every page carries `merge_base_commit`. Make this one
+call and do not paginate it. Use `base.sha`
+from the most recent `lfx_one_github_pulls_get` call, so a rerun from
+Step 5c uses the current target. `base.sha` itself is the target branch
+tip, not the commit the PR diff starts from. Step 5c compares against
+`merge_base`. If the merge base is unavailable, leave `merge_base` unset
+and treat every file without a patch as a match. If either version
+contains excluded code, treat it as a match: the change may add, edit, or
+remove that code. If a read fails and the path could belong to an
+excluded area, treat it as a match.
 
 If none matches, a run from Step 3 proceeds to Step 3.5 with the review
 type (initial or follow-up) and scope that Step 3 chose, and a run from the
@@ -685,15 +689,28 @@ new one, and so a concurrent firing can see an in-progress session (Step
   Step 3.2. Each file's `patch` is the diff to review. Also call
   `lfx_one_github_pulls_list_commits` and paginate until complete; commit
   messages are review material too (see Operating rules).
-- **Follow-up review:** call `lfx_one_github_repos_compare_commits` with
-  `basehead` `<last_reviewed_sha>...<head_sha>`. Its `files[].patch` is the
-  review scope, and its `commits` are the new commits. Also keep the
-  whole-PR `lfx_one_github_pulls_list_files` list from Step 3.2: Step 5b
-  anchors inline comments on that diff, not on the compare diff.
-  If the compare call fails (the old SHA is gone after a force-push) or
-  returns `status: "diverged"` or `"behind"`, the old range no longer
-  describes the PR. Review the whole PR diff instead, still reconciling
-  prior feedback, and say in the Step 6 recap that history was rewritten.
+- **Follow-up review:** first call `lfx_one_github_pulls_list_commits`
+  and paginate until complete. The new commits are the ones listed after
+  `last_reviewed_sha`.
+  - If `last_reviewed_sha` is not in the list, history was rewritten (for
+    example, a force-push). Do not call compare.
+  - If any new commit has two or more `parents`, it merged another branch
+    (usually the target branch) into the PR. Do not call compare: the
+    range would carry every change that branch brought in, which can be
+    far larger than the PR and overflow this run's context.
+  - Otherwise, call `lfx_one_github_repos_compare_commits` with `basehead`
+    `<last_reviewed_sha>...<head_sha>`. Its `files[].patch` is the review
+    scope, and its `commits` are the new commits. If the call fails or
+    returns `status: "diverged"` or `"behind"`, history was rewritten.
+
+  When history was rewritten or a merge commit was found, review the whole
+  PR diff from Step 3.2 instead, still reconciling prior feedback. The
+  commit material is the new commits, or every commit when history was
+  rewritten. Say in the Step 6 recap that history was rewritten, or that
+  merge commit `<short SHA>` widened the scope to the whole PR. In every
+  case keep the whole-PR `lfx_one_github_pulls_list_files` list from Step
+  3.2: Step 5b anchors inline comments on that diff, not on the compare
+  diff.
 - **Large files:** GitHub omits `patch` for very large diffs. For such a
   file, read it with `lfx_one_github_repos_get_content` (`ref: head_sha`) and
   review the parts that matter, or say in the recap that it was not reviewed
@@ -712,7 +729,8 @@ new one, and so a concurrent firing can see an in-progress session (Step
 
 Review the change in a single pass across every dimension below. For a
 follow-up, scope the file scan to only the commits since
-`last_reviewed_sha`, not the whole PR. For real-looking data in tests and
+`last_reviewed_sha`, not the whole PR, unless "Gather the material" fell
+back to the whole PR diff. For real-looking data in tests and
 fixtures, decide from the diff and nearby comments only; do not look up
 names, companies, or amounts.
 

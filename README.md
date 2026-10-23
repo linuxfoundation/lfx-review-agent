@@ -278,6 +278,11 @@ Run these on a throwaway PR before enabling triggers on a real repository.
     Then, on a PR the agent approved, convert it to draft, push a commit,
     and mark it ready again: confirm a follow-up review scoped to that
     commit.
+13. On a reviewed PR, merge the target branch into the PR branch (for
+    example, with "Update branch") after the target has moved. Confirm the
+    session makes no `last_reviewed_sha...head_sha` compare call
+    (`guild session events <id> --events all`), the follow-up reviews the
+    whole PR diff, and the recap says the merge widened the scope.
 
 ## Ideas
 
