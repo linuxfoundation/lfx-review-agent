@@ -107,6 +107,29 @@ identity check). Until the variable is fixed, each new
 event posts another stray session-start comment, because the own-comment
 filter cannot see the earlier ones.
 
+## Onboarding a repository
+
+Do these in order. Steps 1 to 3 need an organization owner or the
+repository's admins. Step 4 starts live reviews on the repository's next
+PR event, so do it last.
+
+1. **Guild GitHub App.** An organization owner enables the Guild GitHub App
+   (`guildai~github`) for the repository, so webhook events reach Guild.
+   See Triggers.
+2. **`lfx-one` token.** Add the repository to the existing `lfx-one`
+   fine-grained token. Edit the token; do not regenerate it, or the Guild
+   credential and its policies stop working. An organization owner must
+   approve the change. See Reviewer identity.
+3. **CODEOWNERS.** Add `lfx-one` to the team the repository's CODEOWNERS
+   or branch protection accepts, with write access. Without it, the
+   agent's approvals are advisory.
+4. **Triggers.** Run `scripts/onboard-repo.sh` for the repository. See
+   Triggers.
+
+No agent, prompt, or credential policy change is needed. The review
+exclusions in `PROMPT.md` apply to every repository; add a rule there first
+if the new repository has code the agent must not review.
+
 ## Triggers
 
 Webhook events reach the agent through the Guild GitHub App
@@ -122,44 +145,35 @@ events for repositories it can see, so before creating triggers:
   repository even when the app is installed. A trigger created with the CLI
   is not checked against that list, and it fires normally.
 
-Create four webhook triggers, each scoped to one repository with
-`--service-config` and leaving `agent_input` empty so the raw payload is
-forwarded. Trigger names must be unique within the workspace. Repeat per
-repository.
+Each repository needs four webhook triggers, one per event the agent
+handles. Each is scoped to one repository with `--service-config` and
+leaves `agent_input` empty so the raw payload is forwarded. Trigger names
+must be unique within the workspace.
+
+| Event | Action | Trigger name | Starts |
+| --- | --- | --- | --- |
+| `pull_request` | `opened` | `lfx-review-agent <repo> opened` | the initial review |
+| `pull_request` | `synchronize` | `lfx-review-agent <repo> synchronize` | a follow-up review after a push |
+| `pull_request` | `ready_for_review` | `lfx-review-agent <repo> ready_for_review` | the review of a PR that was a draft |
+| `issue_comment` | `created` | `lfx-review-agent <repo> re-review comment` | a review on `@lfx-one re-review` |
+
+`scripts/onboard-repo.sh` creates them. It takes one or more repository
+names and skips any trigger that already exists, matched on repository,
+event and action, so it is safe to run again. It needs `jq`.
 
 ```bash
-WS=<workspace-id>
-REPO=linuxfoundation/<repo>
-
-for action in opened synchronize ready_for_review; do
-  guild trigger create \
-    --workspace "$WS" \
-    --type webhook \
-    --integration github \
-    --event pull_request \
-    --action "$action" \
-    --agent linux-foundation~lfx-review-agent \
-    --name "lfx-review-agent ${REPO##*/} $action" \
-    --service-config "{\"repo\": \"$REPO\"}"
-done
-
-guild trigger create \
-  --workspace "$WS" \
-  --type webhook \
-  --integration github \
-  --event issue_comment \
-  --action created \
-  --agent linux-foundation~lfx-review-agent \
-  --name "lfx-review-agent ${REPO##*/} re-review comment" \
-  --service-config "{\"repo\": \"$REPO\"}"
+WS=<workspace-id> scripts/onboard-repo.sh lfx-v2-example-service lfx-v2-other-service
+guild trigger list --workspace <workspace-id> --limit 200
 ```
 
 Without the `ready_for_review` trigger, a PR opened as a draft gets no
 review until someone comments `@lfx-one re-review`, and commits pushed
 while a PR is a draft are never reviewed, so an earlier approval stays in
-place. To add it to a repository onboarded with only the other three
-triggers, run the loop above with just `ready_for_review`. `guild trigger
-list --workspace "$WS"` shows which repositories have it.
+place.
+
+When the agent starts handling another event, add it to `TRIGGERS` in
+`scripts/onboard-repo.sh` and to the table above, then rerun the script
+for every onboarded repository. It creates only the missing trigger.
 
 Create triggers only for repositories the `lfx-one` token covers. A trigger
 on any other repository fails its first GitHub read, and the session stops

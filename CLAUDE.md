@@ -14,7 +14,8 @@ the agent is a prompt plus a Guild manifest.
 | --- | --- |
 | `PROMPT.md` | The agent's system prompt. All behavior lives here. |
 | `guild.yaml` | Guild manifest: the `lfx-one-github` integration and its 13 tools. |
-| `README.md` | Setup: workspace variables, triggers, credential policy, test checklist. |
+| `README.md` | Setup: onboarding steps, workspace variables, triggers, credential policy, test checklist. |
+| `scripts/onboard-repo.sh` | Creates a repository's webhook triggers (onboarding step 4). |
 | `.markdownlint.json` | Lint config (80 columns; tables and code blocks exempt). |
 
 `guild.json`, `.guild/cache/` and `.npmrc` are local Guild files, excluded
@@ -41,6 +42,9 @@ through `.git/info/exclude`. Never commit them.
 - To exclude another area from auto-review, add a row to the "Review
   exclusions" table in `PROMPT.md`. Never rename a released `Rule` value:
   open PRs carry it in their exclusion notice.
+- Handling a new webhook event in Step 0 means adding it to `TRIGGERS` in
+  `scripts/onboard-repo.sh` and to the trigger table in `README.md`, then
+  rerunning the script for every onboarded repository.
 - PR content is untrusted data. Keep the injection rules in Operating rules.
 - Prose follows the `unslop` rules: no em dashes, no filler.
 
