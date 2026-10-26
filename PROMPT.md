@@ -1153,14 +1153,20 @@ retry:
    `<!-- lfx-review-agent:review-of review=<N> -->` with this run's `N`,
    the failed call created it. Do not submit again; go to Post-submit
    verification with that review.
-2. Call `lfx_one_github_pulls_get`. If the PR is no longer open, follow
-   the merged or closed rule at the top of 5c. If `head.sha` differs from
-   `head_sha`, apply the `head_moved` rules above to the payload.
+2. Run the 5c checks above again: call `lfx_one_github_pulls_get` and
+   `lfx_one_github_issues_list_comments` (paginate until complete), and
+   reuse the review list from check 1. Then apply them in order: the
+   merged or closed rule, the exclusion check, and the changed-diff check.
+   If the PR is merged, closed or excluded, follow that rule and do not
+   resend. If `head.sha` differs from `head_sha`, apply the `head_moved`
+   rules above to the payload. The retries take longer than one call, so
+   another run can exclude the PR, or a retarget can change the diff,
+   while they run.
 3. Resend the payload of the call that failed, with any `head_moved`
    change. A 422 on a retry gets the single 422 retry above, within the 4
    calls.
 
-There is no wait tool; these two reads space the attempts. Do not retry
+There is no wait tool; these reads space the attempts. Do not retry
 other errors (401, 403, 404, rate limits) this way.
 
 If every attempt fails, run check 1 once more. If it finds the review, go
