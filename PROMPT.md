@@ -252,7 +252,8 @@ text. A comment matches at most one class, first match wins:
    `<!-- lfx-review-agent:abandoned review=N started=<ISO-8601> -->`. A
    start comment that a later run found orphaned and closed out (Step
    3.5), or that its own run closed out because the PR was merged or
-   closed mid-review (Step 5c). It carries no session marker.
+   closed mid-review, or because GitHub kept failing the submit (Step
+   5c). It carries no session marker.
 6. **`session-start`**: body contains a session marker
    `<!-- lfx-review-agent:session review=N started=<ISO-8601> -->`
    and does **not** contain the preview-disclaimer line from Step 6
@@ -294,8 +295,9 @@ Parse every session marker (`session-start` and `session-summary`):
   keeps its number, so numbers stay unique.
 - **`attempt_count`** does not include `abandoned` comments or
   `abandoned_starts`, so gate A sees the same count before and after Step
-  3.5 closes them out. A run that hung without producing a review is not a
-  review round, so it does not use up the cap of 10.
+  3.5 closes them out. A run that hung or failed to submit without
+  producing a review is not a review round, so it does not use up the cap
+  of 10.
 - Debounce notices, cap notices and skip notices do **not** count as
   attempts.
 
@@ -387,6 +389,10 @@ the last review.
   notice.
 - If it is `other`, stop silently, except that a `re-review` gets a skip
   notice.
+- If it is `abandoned`, this gate does not apply; go to gate D. A review
+  that was closed out without posting left nothing to debounce, and the
+  failed-submit notice from Step 5c tells the author the next event
+  starts a new review.
 
 **D. Otherwise** proceed to Step 2. The in-progress session comment is
 still not posted. That happens in Step 3.5, only if Step 3 decides a
@@ -475,8 +481,9 @@ From that filtered list:
   - If there is also no dismissed own review, **and** either
     `abandoned_starts` is non-empty or the PR has an own `abandoned`
     comment (a Step 3.5 that closed out a start and died before posting
-    its replacement) → the first review was started and never finished
-    (the run crashed or hung). Proceed to Step 3.2 as an **initial review**. This
+    its replacement, or a Step 5c submit that kept failing) → the first
+    review was started and never finished (the run crashed, hung, or
+    could not submit). Proceed to Step 3.2 as an **initial review**. This
     recovers a first review that the `opened` run lost.
   - If there is also no dismissed own review and there is neither an
     abandoned start nor an `abandoned` comment → stop. There is nothing to
@@ -1131,7 +1138,42 @@ This single call publishes the verdict and every inline comment together;
 never create a pending review and submit it later. If the call fails with
 a 422 (usually a comment anchored outside the diff), retry **once** with
 `comments` empty and every inline finding moved into the body under
-`Findings outside the diff`. If the retry also fails, go to Error handling.
+`Findings outside the diff`. If the retry also fails with a 422, go to
+Error handling.
+
+**Server errors.** If the call fails with a 5xx status (500 to 599,
+including the integration's `502 Bad Gateway: The upstream integration
+service returned HTTP 500`), retry up to **3** times. This run makes at
+most 4 `lfx_one_github_pulls_create_review` calls in total, counting the
+422 retry. A server error can still create the review, so before each
+retry:
+
+1. Call `lfx_one_github_pulls_list_reviews` and paginate until complete.
+   If an own review (`user.login == "{{env.REVIEWER_LOGIN}}"`) carries
+   `<!-- lfx-review-agent:review-of review=<N> -->` with this run's `N`,
+   the failed call created it. Do not submit again; go to Post-submit
+   verification with that review.
+2. Call `lfx_one_github_pulls_get`. If the PR is no longer open, follow
+   the merged or closed rule at the top of 5c. If `head.sha` differs from
+   `head_sha`, apply the `head_moved` rules above to the payload.
+3. Resend the payload of the call that failed, with any `head_moved`
+   change. A 422 on a retry gets the single 422 retry above, within the 4
+   calls.
+
+There is no wait tool; these two reads space the attempts. Do not retry
+other errors (401, 403, 404, rate limits) this way.
+
+If every attempt fails, run check 1 once more. If it finds the review, go
+to Post-submit verification. Otherwise skip Step 6 and close out the
+session so the next event can start a new review right away: call
+`lfx_one_github_issues_update_comment` on this run's session comment (the
+`id` from Step 3.5) and replace its whole body with
+`<!-- lfx-review-agent:abandoned review=<N> started=<ISO-8601> -->`
+(this run's `N` and `started`), then one line: `GitHub returned a server
+error each time I submitted review <N>, so no review was posted. The next
+push, or a comment with @lfx-one re-review, starts a new review.` If the
+update fails, the comment stays a `session-start` and the 45-minute rule
+in Step 1.5 gate B applies. Then go to Step 7.
 
 ### Post-submit verification (required)
 
@@ -1264,14 +1306,18 @@ notice, and say whether an earlier approval was revoked (with the review's
 closed, or excluded, report
 `Review not posted: PR <merged|closed|excluded> during review`, link the PR
 and the closed-out session comment, and say whether the comment update
-succeeded.
+succeeded. For a run whose submit failed with server errors on every
+attempt, report `Review not posted: GitHub server errors on submit`, give
+the number of attempts and the last error, link the PR and the
+closed-out session comment, and say whether the comment update succeeded.
 
 ## Error handling
 
 - A missing or unauthorized GitHub credential surfaces as a tool error.
   Stop and report it; do not retry in a loop.
 - Any other tool failure (rate limit, permission, network), apart from the
-  single 422 retry in 5c, the best-effort display-name lookup in Step 6,
+  single 422 retry and the server-error retries in 5c, the best-effort
+  display-name lookup in Step 6,
   and the best-effort reaction in Step 0.5: stop this run. If Step 3.5
   already posted a session-start comment, leave it. Do not delete it. A
   later firing treats a start younger than 45 minutes as in-progress
