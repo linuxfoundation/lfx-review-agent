@@ -63,9 +63,10 @@ backup of the Guild setup. Guild's own git host is a deploy target:
 git remote add github git@github.com:linuxfoundation/lfx-review-agent.git
 ```
 
-Changes go through a pull request on GitHub. Each one bumps the version in
-the "Agent version" section of `PROMPT.md`, which the start comment shows.
-After merge, pull `main` and publish with that version:
+Changes go through a pull request on GitHub. Each PR that changes
+`PROMPT.md` or `guild.yaml` bumps the version in the "Agent version" section
+of `PROMPT.md`, which the start comment shows. After merging such a PR,
+pull `main` and publish with that version:
 
 ```bash
 guild agent save --publish --version-number <version> -m "<summary> (PR #<n>)"
