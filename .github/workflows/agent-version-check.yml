@@ -1,0 +1,58 @@
+---
+# Copyright The Linux Foundation and each contributor to LFX.
+# SPDX-License-Identifier: MIT
+
+name: Agent Version Check
+
+# Runs on every PR, without a paths filter, so it always reports a status
+# and can be a required check.
+"on": [pull_request]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  agent-version-check:
+    name: Agent Version Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require a version bump when PROMPT.md or guild.yaml changes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+
+          if ! gh api --paginate "repos/$REPO/pulls/$PR/files" \
+              --jq '.[].filename' | grep -qxE 'PROMPT\.md|guild\.yaml'; then
+            echo "PROMPT.md and guild.yaml are unchanged; no bump needed."
+            exit 0
+          fi
+
+          # Prints the x.y.z in the "Agent version" section, or nothing.
+          # shellcheck disable=SC2016 # the backticks are literal
+          version() {
+            gh api "repos/$1/contents/PROMPT.md?ref=$2" \
+              -H "Accept: application/vnd.github.raw" 2>/dev/null |
+              sed -nE 's/.*review agent version \*\*`([0-9]+\.[0-9]+\.[0-9]+)`\*\*.*/\1/p' |
+              head -n 1
+          }
+          base=$(version "$REPO" "$BASE_SHA")
+          head=$(version "$HEAD_REPO" "$HEAD_SHA")
+          next=$(echo "${base:-0.0.0}" | awk -F. '{print $1 "." $2 "." $3 + 1}')
+
+          if [ -z "$head" ]; then
+            echo "::error file=PROMPT.md::No x.y.z version found in the \"Agent version\" section. Set it to $next."
+            exit 1
+          fi
+          if [ -n "$base" ] && { [ "$head" = "$base" ] ||
+              [ "$(printf '%s\n%s\n' "$base" "$head" | sort -V | tail -n 1)" != "$head" ]; }; then
+            echo "::error file=PROMPT.md::This PR changes PROMPT.md or guild.yaml but the agent version is $head (base $base). Bump it to $next."
+            exit 1
+          fi
+          echo "Agent version ${base:-none} -> $head."
