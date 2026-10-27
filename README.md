@@ -63,10 +63,16 @@ backup of the Guild setup. Guild's own git host is a deploy target:
 git remote add github git@github.com:linuxfoundation/lfx-review-agent.git
 ```
 
-Changes go through a pull request on GitHub. After merge, pull `main` and run
-`guild agent save` to publish the new version. `guild.json` (the Guild agent
-ID) stays untracked, as Guild's `.git/info/exclude` sets up; the agent is
-`linux-foundation~lfx-review-agent`.
+Changes go through a pull request on GitHub. Each one bumps the version in
+the "Agent version" section of `PROMPT.md`, which the start comment shows.
+After merge, pull `main` and publish with that version:
+
+```bash
+guild agent save --publish --version-number <version> -m "<summary> (PR #<n>)"
+```
+
+`guild.json` (the Guild agent ID) stays untracked, as Guild's
+`.git/info/exclude` sets up; the agent is `linux-foundation~lfx-review-agent`.
 
 ## Time source
 

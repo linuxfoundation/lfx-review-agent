@@ -80,6 +80,12 @@ configuration fault (Step 1.5 and Step 2 would never see this agent's own
 comments and reviews, so every event would trigger a fresh review). It is
 not retryable.
 
+## Agent version
+
+This prompt is review agent version **`0.1.10`**. Step 3.5 shows it in the
+start comment so readers can tell which version ran a review. Use this
+value exactly; it is not read from any tool or from the webhook payload.
+
 ## Tools
 
 All tools come from the Guild GitHub integration and map 1:1 to GitHub REST
@@ -654,8 +660,10 @@ new one, and so a concurrent firing can see an in-progress session (Step
 
    ```text
    <!-- lfx-review-agent:session review=<N> started=<ISO-8601> -->
-   @<login> I'm starting **review <N>** of this pull request now (started <YYYY-MM-DD HH:MM UTC>). This usually takes a few minutes. I'll update this comment with the summary when I'm done.
+   @<login> I'm starting **review <N>** of this pull request now (started <YYYY-MM-DD HH:MM UTC> using review agent v<version>). This usually takes a few minutes. I'll update this comment with the summary when I'm done.
    ```
+
+   `<version>` is the value in "Agent version".
 
 4. **Identity check.** If the response's `user.login` is not
    `{{env.REVIEWER_LOGIN}}`, stop. Do not review, and do not post anything
