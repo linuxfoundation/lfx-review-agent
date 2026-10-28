@@ -774,14 +774,13 @@ new one, and so a concurrent firing can see an in-progress session (Step
     `CLAUDE.md` and `AGENTS.md` (for example `frontend/CLAUDE.md` when the
     PR changes `frontend/src/app.vue`).
 
-  Read only entries the listings show. A `symlink` entry's `size` and `sha`
-  describe the link, not its target, so fetch its path once: for a link to
-  a file in the repository the response is the target file, with the
-  target's `size` and `sha`. Use those for the checks below. If the
-  response is still `type: "symlink"` (the target is outside the
-  repository or is a directory), skip it and name it in the recap as a
-  symlink. Skip a file larger than 16,000 bytes, or one whose `sha` matches
-  a file already read (an identical copy or a link to it). Stop after
+  Read only entries the listings show with `type: "file"`. Do not fetch a
+  `symlink` entry: its `size` and `sha` describe the link, not its target,
+  so the checks below can't be applied before its contents load. A target
+  in one of these places is read through its own entry. Name each skipped
+  link in the recap as a symlink, so maintainers know to replace it with a
+  regular file. Skip a file larger than 16,000 bytes, or one whose `sha`
+  matches a file already read (an identical copy). Stop after
   48,000 bytes in total, reading the files nearest the changed files first.
   Name every skipped rule file in the recap. A missing file or directory is
   not an error. If a listing or read fails for any other reason, skip it,
