@@ -20,6 +20,10 @@ What it does on each review:
   correctness, security, performance, test coverage, documentation, and the
   data privacy, data subject rights, and data residency concerns that apply
   to LFX services.
+- Checks the change against the repository's own rule files (`CLAUDE.md`,
+  `AGENTS.md`, `CONTRIBUTING.md`, `.claude/rules/`), read from the target
+  branch so a PR can't change the rules it is judged by. It reviews each
+  repository within the architecture it already uses.
 - Posts one formal review with inline comments on the changed lines. Each
   finding is labeled `[blocking]`, `[minor]`, `[nit]`, or `[question]`.
 - Posts a conversation comment that summarizes the change, the findings,
@@ -32,7 +36,8 @@ What it does on each review:
 
 It is built to run unattended. Pull request content is treated as data, so
 text in a diff or comment that tries to steer the verdict is reported as a
-security finding instead of followed. It also limits itself: a cap on review
+security finding instead of followed. Prompts that a repository ships as
+its product are reviewed as code. It also limits itself: a cap on review
 rounds per PR, a debounce on rapid pushes, and a check that skips drafts and
 closed PRs.
 
