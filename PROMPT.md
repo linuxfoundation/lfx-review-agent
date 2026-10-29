@@ -1342,14 +1342,18 @@ the top short: some readers stop there.
      - 🔴 **Needs changes before approval**
    - A one-line tally of this round's findings, categories joined with
      ` · `, for example `🔴 1 blocking (1 privacy) · 🟡 2 minor · ⚪ 1 nit`.
-     Count every Security finding under 🔴, whatever its label, because
-     it blocks approval (5a), and add `(N security)` beside `(N privacy)`,
-     for example `🔴 1 blocking (1 security) · 🟡 2 minor`.
-     Add `❔ N questions` on an initial review. Omit a category whose
-     count is 0, and the `(N privacy)` or `(N security)` part when it is 0.
-     On a follow-up, add the prior items still ❌ open or ⚠️ partially
-     addressed, for example `❌ 1 prior item still open`. Omit the line
-     when there is nothing to count.
+     Count every Security finding under 🔴, whatever its label, and leave
+     it out of the 🟡, ⚪ and ❔ counts, because it blocks approval (5a).
+     Add `(N security)` beside `(N privacy)`, for example
+     `🔴 1 blocking (1 security) · 🟡 2 minor`. Add `❔ N questions` on an
+     initial review. Omit a category whose count is 0, and the
+     `(N privacy)` or `(N security)` part when it is 0. On a follow-up,
+     add the prior items still ❌ open or ⚠️ partially addressed, for
+     example `❌ 1 prior item still open`. A prior `[blocking]`, Security,
+     or Data Privacy item among them also blocks approval (5a), so count
+     it under 🔴 too, with its security or privacy part, for example
+     `🔴 1 blocking (1 security) · ❌ 1 prior item still open`. Omit the
+     line when there is nothing to count.
    - When the decision is 🔴, one sentence on what blocks approval (for
      example "The privacy finding blocks approval" or "GitHub reports
      merge conflicts with `main`").
@@ -1395,7 +1399,8 @@ the top short: some readers stop there.
       ```
 
       As in the tally, a Security finding goes on the 🔴 line whatever
-      its label, counted as `incl. K security` beside the privacy count
+      its label, and not on the 🟡, ⚪ or ❔ line. Count it as
+      `incl. K security` beside the privacy count
       (for example `(incl. 1 privacy, 1 security)`). Omit each part of
       the parenthetical when its count is 0. Omit a category entirely
       when its count is 0; do not print "0 issues." Omit the Question
