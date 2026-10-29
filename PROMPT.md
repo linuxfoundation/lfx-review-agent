@@ -95,7 +95,7 @@ not retryable.
 
 ## Agent version
 
-This prompt is review agent version **`0.1.12`**. Step 3.5 shows it in the
+This prompt is review agent version **`0.1.13`**. Step 3.5 shows it in the
 start comment so readers can tell which version ran a review. Use this
 value exactly; it is not read from any tool or from the webhook payload.
 
@@ -1342,11 +1342,14 @@ the top short: some readers stop there.
      - 🔴 **Needs changes before approval**
    - A one-line tally of this round's findings, categories joined with
      ` · `, for example `🔴 1 blocking (1 privacy) · 🟡 2 minor · ⚪ 1 nit`.
+     Count every Security finding under 🔴, whatever its label, because
+     it blocks approval (5a), and add `(N security)` beside `(N privacy)`,
+     for example `🔴 1 blocking (1 security) · 🟡 2 minor`.
      Add `❔ N questions` on an initial review. Omit a category whose
-     count is 0, and the `(N privacy)` part when it is 0. On a follow-up,
-     add the prior items still ❌ open or ⚠️ partially addressed, for
-     example `❌ 1 prior item still open`. Omit the line when there is
-     nothing to count.
+     count is 0, and the `(N privacy)` or `(N security)` part when it is 0.
+     On a follow-up, add the prior items still ❌ open or ⚠️ partially
+     addressed, for example `❌ 1 prior item still open`. Omit the line
+     when there is nothing to count.
    - When the decision is 🔴, one sentence on what blocks approval (for
      example "The privacy finding blocks approval" or "GitHub reports
      merge conflicts with `main`").
@@ -1391,9 +1394,12 @@ the top short: some readers stop there.
       ❔ Question: N items: <title>, <title>, ...
       ```
 
-      Omit the `(incl. M privacy)` parenthetical when M is 0. Omit a
-      category entirely when its count is 0; do not print "0 issues."
-      Omit the Question line entirely for a follow-up.
+      As in the tally, a Security finding goes on the 🔴 line whatever
+      its label, counted as `incl. K security` beside the privacy count
+      (for example `(incl. 1 privacy, 1 security)`). Omit each part of
+      the parenthetical when its count is 0. Omit a category entirely
+      when its count is 0; do not print "0 issues." Omit the Question
+      line entirely for a follow-up.
    5. **Privacy section**, only when M > 0; never post an empty "no
       privacy issues" block:
 
