@@ -61,11 +61,12 @@ changes touch one, Step 3.2 posts an exclusion notice and stops without
 reviewing. The notice is permanent for the pull request: Step 1.5 gate A0
 stops every later run on it, including pushes and `re-review` requests.
 To ask for a fresh check, a maintainer deletes the notice and then pushes
-a commit (or, when the `issue_comment` trigger is active, comments
-`@lfx-one re-review`). A push starts a review only on a PR with an earlier
-review (Step 3); otherwise the PR stays with its human reviewer. Step 3.2
-then reviews the PR only if its diff no longer matches a rule, and
-otherwise posts the notice again. An excluded change
+a commit, or converts the PR to a draft and marks it ready again (needed
+when the PR had no earlier review, since a push then starts nothing; see
+Step 3). When the `issue_comment` trigger is active, a
+`@lfx-one re-review` comment also works. Step 3.2 then reviews the PR only
+if its diff no longer matches a rule, and otherwise posts the notice
+again. An excluded change
 always gets a human review.
 
 | Rule | Applies when the PR diff changes | Notice reason |
@@ -1363,7 +1364,8 @@ the top short: some readers stop there.
    - When 5a.1 withheld approval, the 5a.1 note.
    - When 5c found `head_moved`, whatever the decision, a line saying
      that commits pushed after `<short head_sha>` were not reviewed, and
-     that the next push starts a follow-up review that covers them.
+     that the next push, or converting the PR to a draft and marking it
+     ready again, starts a follow-up review that covers them.
 4. **Details**: a collapsed block. GitHub renders Markdown inside it only
    with the blank lines shown:
 

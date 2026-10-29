@@ -47,9 +47,10 @@ downloads. When a PR touches a listed area, the agent posts a note saying
 why it won't review the PR and skips every later push on it. If it had
 approved an earlier commit, it replaces that approval with a "changes
 requested" review so the PR can't merge without a human. To ask for a fresh
-check, a maintainer deletes that note and pushes a commit; the agent
-reviews the PR only if it reviewed an earlier commit and the PR no longer
-changes an excluded area. Otherwise a human reviews it.
+check, a maintainer deletes that note and then pushes a commit, or
+converts the PR to a draft and marks it ready again (needed when the agent
+never reviewed the PR, since a push then starts nothing). The agent reviews
+the PR only if it no longer changes an excluded area.
 
 ## When it runs
 
@@ -305,8 +306,10 @@ Run these on a throwaway PR before enabling triggers on a real repository.
     no session comment, and no review. Push again: confirm no review and
     no reply. Then, on a PR the agent approved, push an ICS change:
     confirm a `REQUEST_CHANGES` review replaces the approval.
-11. On the approved PR that got the ICS change, revert it, delete the
-    exclusion notice, and push. Confirm a normal follow-up review runs.
+11. On the approved PR that got the ICS change, delete the exclusion
+    notice first, then push a commit that reverts the ICS change (a push
+    made while the notice exists is stopped by gate A0). Confirm a normal
+    follow-up review runs.
 12. Open a PR as a draft. Confirm no review. Mark it ready for review and
     confirm a session appears for the `ready_for_review` trigger
     (`guild trigger sessions <id>`), the payload carries
