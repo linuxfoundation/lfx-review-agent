@@ -13,7 +13,7 @@ the agent is a prompt plus a Guild manifest.
 | File | Role |
 | --- | --- |
 | `PROMPT.md` | The agent's system prompt. All behavior lives here. |
-| `guild.yaml` | Guild manifest: the `lfx-one-github` integration and its 13 tools. |
+| `guild.yaml` | Guild manifest: the `lfx-one-github` integration and its 17 tools. |
 | `README.md` | Setup: onboarding steps, workspace variables, triggers, credential policy, test checklist. |
 | `scripts/onboard-repo.sh` | Creates a repository's webhook triggers (onboarding step 4). |
 | `.markdownlint.json` | Lint config (80 columns; tables and code blocks exempt). |

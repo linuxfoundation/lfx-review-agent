@@ -11,7 +11,7 @@
 
 integrations:
   - name: linux-foundation~lfx-one-github
-    version: "1.0.2"
+    version: "1.0.4"
     tools:
       - lfx_one_github_pulls_get
       - lfx_one_github_pulls_list_files
@@ -26,5 +26,9 @@ integrations:
       - lfx_one_github_repos_compare_commits
       - lfx_one_github_repos_get_content
       - lfx_one_github_users_get_by_username
+      - lfx_one_github_repos_get_branch
+      - lfx_one_github_repos_get_branch_rules
+      - lfx_one_github_checks_list_for_ref
+      - lfx_one_github_repos_get_combined_status
 sub_agents: []
 builtins: []

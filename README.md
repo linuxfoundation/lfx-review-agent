@@ -223,12 +223,24 @@ CRED=<credential-id>   # guild credentials list --owner linux-foundation
 
 guild credentials policy create "$CRED" \
   --decision ALLOW \
-  --operations pulls_get,pulls_list_files,pulls_list_commits,pulls_list_reviews,pulls_list_review_comments,pulls_create_review,issues_list_comments,issues_create_comment,issues_update_comment,issues_create_reaction,repos_compare_commits,repos_get_content,users_get_by_username \
+  --operations pulls_get,pulls_list_files,pulls_list_commits,pulls_list_reviews,pulls_list_review_comments,pulls_create_review,issues_list_comments,issues_create_comment,issues_update_comment,issues_create_reaction,repos_compare_commits,repos_get_content,users_get_by_username,repos_get_branch,repos_get_branch_rules,checks_list_for_ref,repos_get_combined_status \
   --workspaces <workspace-uuid> \
   --agents <agent-uuid>
 
 guild credentials policy list "$CRED"
 guild credentials policy delete <allow-all-policy-id>
+```
+
+There is no command to update a policy. To allow a new operation on an
+existing credential, create another `ALLOW` policy with only the new
+operations, for example the CI check reads added in 0.1.15:
+
+```bash
+guild credentials policy create "$CRED" \
+  --decision ALLOW \
+  --operations repos_get_branch,repos_get_branch_rules,checks_list_for_ref,repos_get_combined_status \
+  --workspaces <workspace-uuid> \
+  --agents <agent-uuid>
 ```
 
 `--workspaces` takes a UUID or `<owner>~<name>`, not a bare workspace name.
@@ -244,15 +256,17 @@ account, shown as "LFX One [bot]"). Guild's shared `guildai~github`
 integration connects as the Guild GitHub App instead, so this agent uses a
 custom integration, `linux-foundation~lfx-one-github`.
 
-- The integration wraps the 13 GitHub REST operations the agent uses. The
+- The integration wraps the 17 GitHub REST operations the agent uses. The
   OpenAPI spec is `integration/lfx-one-github.openapi.yaml`. The spec
   declares an HTTP bearer security scheme. In Guild the connection uses the
   API Key auth type with the header `Authorization: Bearer {token}`.
 - The credential is a fine-grained personal access token owned by
   `lfx-one`, with resource owner `linuxfoundation`. Grant it read and write
-  on Pull requests and Issues, read on Contents, and access to each
-  repository the agent reviews. An organization owner must approve it.
-  Connect it from your shell and never commit it:
+  on Pull requests and Issues, read on Contents, Checks and Commit
+  statuses, and access to each repository the agent reviews. Without
+  Checks and Commit statuses, the CI check reads fail and the agent
+  reviews as before, without the CI check gate. An organization owner
+  must approve it. Connect it from your shell and never commit it:
   `guild integration connect linux-foundation~lfx-one-github --owner
   linux-foundation`.
 - Set `REVIEWER_LOGIN` to `lfx-one`. The re-review phrase is
@@ -322,6 +336,12 @@ Run these on a throwaway PR before enabling triggers on a real repository.
     session makes no `last_reviewed_sha...head_sha` compare call
     (`guild session events <id> --events all`), the follow-up reviews the
     whole PR diff, and the recap says the merge widened the scope.
+14. On a PR whose review would approve, make a required check fail (for
+    example, a commit without a DCO sign-off). Confirm a `COMMENTED`
+    review with the approval-withheld marker, the ⚠️ **Review passed,
+    required check failed** decision, and a failed-checks line. On a PR
+    with only a failing check that is not required (lf-dbt's `dbt Cloud`),
+    confirm the review still approves and the line marks it not required.
 
 ## Ideas
 
