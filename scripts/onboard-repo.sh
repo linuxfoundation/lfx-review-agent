@@ -18,11 +18,14 @@ set -euo pipefail
 # "<event> <action> <name suffix>". When the agent handles a new event,
 # add it here and in README.md, then rerun this script for every onboarded
 # repository.
+#
+# The "issue_comment created re-review comment" trigger is left out: it
+# started a model run for every comment, and is deactivated to save cost
+# (README.md, Triggers).
 TRIGGERS=(
   "pull_request opened opened"
   "pull_request synchronize synchronize"
   "pull_request ready_for_review ready_for_review"
-  "issue_comment created re-review comment"
 )
 
 AGENT=linux-foundation~lfx-review-agent
