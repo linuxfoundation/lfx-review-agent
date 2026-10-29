@@ -26,9 +26,9 @@ What it does on each review:
   repository within the architecture it already uses.
 - Posts one formal review with inline comments on the changed lines. Each
   finding is labeled `[blocking]`, `[minor]`, `[nit]`, or `[question]`.
-- Posts a conversation comment that summarizes the change, the findings,
-  and a clear decision: approved, approved with minor comments, or needs
-  changes.
+- Posts a conversation comment with a short Summary of the change, a
+  Decision (approved, approved with minor comments, or needs changes) with
+  a tally of the findings, and the full recap in a collapsed Details block.
 - Follows up on later pushes by reviewing only the new commits, and
   reconciles what other reviewers and bots have already said.
 - Approves only PRs authored by org members. For anyone else it still
@@ -112,7 +112,7 @@ that the references are well formed, so set both before enabling triggers.
 | Variable | Value |
 | --- | --- |
 | `REVIEWER_LOGIN` | The GitHub login the credential posts as: `lfx-one`. |
-| `REVIEW_AGENT_HELP_URL` | `https://github.com/linuxfoundation/lfx-review-agent/issues`. Used in the cap notice and the preview disclaimer. |
+| `REVIEW_AGENT_HELP_URL` | `https://github.com/linuxfoundation/lfx-review-agent/issues`. Used in the cap notice, the start comment, and the summary footer. |
 
 If `REVIEWER_LOGIN` does not match the account that posts, the agent stops
 after its first comment and reports a configuration fault (Step 3.5,
