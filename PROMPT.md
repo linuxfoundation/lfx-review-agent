@@ -1401,8 +1401,11 @@ the top short: some readers stop there.
       As in the tally, a Security finding goes on the 🔴 line whatever
       its label, and not on the 🟡, ⚪ or ❔ line. Count it as
       `incl. K security` beside the privacy count
-      (for example `(incl. 1 privacy, 1 security)`). Omit each part of
-      the parenthetical when its count is 0. Omit a category entirely
+      (for example `(incl. 1 privacy, 1 security)`). On a follow-up, also
+      put on the 🔴 line each prior item the tally counts under 🔴, with
+      `(prior)` after its title, so the 🔴 line and the tally give the
+      same count; the item stays in revision tracking as well. Omit each
+      part of the parenthetical when its count is 0. Omit a category entirely
       when its count is 0; do not print "0 issues." Omit the Question
       line entirely for a follow-up.
    5. **Privacy section**, only when M > 0; never post an empty "no
