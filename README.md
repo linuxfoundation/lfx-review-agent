@@ -44,19 +44,20 @@ closed PRs.
 Some areas always need a human reviewer. The "Review exclusions" table in
 `PROMPT.md` lists them; today it has one rule, meeting calendar (ICS)
 downloads. When a PR touches a listed area, the agent posts a note saying
-why it won't review the PR and skips every later push and re-review
-request on it. If it had approved an earlier commit, it replaces that
-approval with a "changes requested" review so the PR can't merge without a
-human. To ask for a fresh check, a maintainer deletes that note and comments
-`@lfx-one re-review`; the agent reviews the PR only if it no longer changes
-an excluded area.
+why it won't review the PR and skips every later push on it. If it had
+approved an earlier commit, it replaces that approval with a "changes
+requested" review so the PR can't merge without a human. To ask for a fresh
+check, a maintainer deletes that note and pushes a commit; the agent
+reviews the PR only if it reviewed an earlier commit and the PR no longer
+changes an excluded area. Otherwise a human reviews it.
 
 ## When it runs
 
 It runs from GitHub webhook events delivered by Guild: `pull_request`
-(`opened`, `synchronize`, `ready_for_review`) and `issue_comment` (`created`, with
-`@lfx-one re-review` on a PR). The setup commands are in the Triggers
-section below.
+(`opened`, `synchronize`, `ready_for_review`). The prompt also handles
+`issue_comment` (`created`, with `@lfx-one re-review` on a PR), but those
+triggers are deactivated for now to save cost; see the Triggers section
+below.
 
 ## Repository
 
@@ -158,8 +159,8 @@ events for repositories it can see, so before creating triggers:
   repository even when the app is installed. A trigger created with the CLI
   is not checked against that list, and it fires normally.
 
-Each repository needs four webhook triggers, one per event the agent
-handles. Each is scoped to one repository with `--service-config` and
+Each repository needs three webhook triggers, one per active event the
+agent handles. Each is scoped to one repository with `--service-config` and
 leaves `agent_input` empty so the raw payload is forwarded. Trigger names
 must be unique within the workspace.
 
@@ -168,7 +169,7 @@ must be unique within the workspace.
 | `pull_request` | `opened` | `lfx-review-agent <repo> opened` | the initial review |
 | `pull_request` | `synchronize` | `lfx-review-agent <repo> synchronize` | a follow-up review after a push |
 | `pull_request` | `ready_for_review` | `lfx-review-agent <repo> ready_for_review` | the review of a PR that was a draft |
-| `issue_comment` | `created` | `lfx-review-agent <repo> re-review comment` | a review on `@lfx-one re-review` |
+| `issue_comment` | `created` | `lfx-review-agent <repo> re-review comment` | a review on `@lfx-one re-review` (deactivated, not created by the script) |
 
 `scripts/onboard-repo.sh` creates them. It takes one or more repository
 names, checks them all before creating anything, and skips any trigger
@@ -181,7 +182,7 @@ guild trigger list --workspace <workspace-id> --limit 200
 ```
 
 Without the `ready_for_review` trigger, a PR opened as a draft gets no
-review until someone comments `@lfx-one re-review`, and commits pushed
+review, and commits pushed
 while a PR is a draft are never reviewed, so an earlier approval stays in
 place.
 
@@ -194,8 +195,16 @@ on any other repository fails its first GitHub read, and the session stops
 with a configuration fault before anything is posted.
 
 The `issue_comment` trigger fires on every comment, including issue
-comments. Step 0 drops anything that is not `@lfx-one re-review` on a pull
-request.
+comments and the agent's own, and each one starts a full model run that
+Step 0 then ends. On 2026-10-28 that was 1,369 runs across the onboarded
+repositories, almost none of them re-review requests. The triggers were
+deactivated on 2026-10-29 and `scripts/onboard-repo.sh` no longer creates
+them. While they are off, the agent's messages point to the next push
+instead of a `re-review` comment. To turn them back on, run
+`guild trigger activate <id>` for each one (list them with
+`guild trigger list`), add the line back to `TRIGGERS`, and restore the
+`re-review` wording in `PROMPT.md`; see "Gatekeeper" under Ideas for a
+cheaper way to bring them back.
 
 ## Credential policy
 
@@ -283,8 +292,8 @@ Run these on a throwaway PR before enabling triggers on a real repository.
    debounce notice if you push again within 5 minutes.
 5. Force-push. Confirm the follow-up falls back to a whole-PR review and
    the recap says history was rewritten.
-6. Comment `@lfx-one re-review`. Confirm it runs a review even after an
-   approval.
+6. Only with the `issue_comment` trigger active: comment
+   `@lfx-one re-review`. Confirm it runs a review even after an approval.
 7. After an approval, push another commit. Confirm a follow-up review
    scoped to the commits after the approved SHA.
 8. Add an inline comment anchored outside the diff (for example, a finding
@@ -293,12 +302,11 @@ Run these on a throwaway PR before enabling triggers on a real repository.
 9. Open a PR from an account outside the org. Confirm the review is
    `COMMENTED` with the approval-withheld marker, never `APPROVED`.
 10. Open a PR that changes `ics.helper.ts`. Confirm the exclusion notice,
-    no session comment, and no review. Push again and comment
-    `@lfx-one re-review`: confirm no review, and a skip reply for the
-    re-review only. Then, on a PR the agent approved, push an ICS change:
+    no session comment, and no review. Push again: confirm no review and
+    no reply. Then, on a PR the agent approved, push an ICS change:
     confirm a `REQUEST_CHANGES` review replaces the approval.
-11. On the excluded PR, revert the ICS change, delete the exclusion notice,
-    and comment `@lfx-one re-review`. Confirm a normal review runs.
+11. On the approved PR that got the ICS change, revert it, delete the
+    exclusion notice, and push. Confirm a normal follow-up review runs.
 12. Open a PR as a draft. Confirm no review. Mark it ready for review and
     confirm a session appears for the `ready_for_review` trigger
     (`guild trigger sessions <id>`), the payload carries
@@ -316,7 +324,8 @@ Run these on a throwaway PR before enabling triggers on a real repository.
 
 - **Gatekeeper (highest priority).** The `issue_comment` trigger fires on
   every comment on every watched repository, and each one starts a full
-  model run that Step 0 then ends. A trigger-level filter on `comment.body`
+  model run that Step 0 then ends. The triggers are deactivated until this
+  exists. A trigger-level filter on `comment.body`
   matching `@lfx-one re-review` (case-insensitive) would reject those
   events before any run starts. It is not built: `guild trigger create`
   offers only `--event`, `--action` and a repo-scoped `--service-config`,

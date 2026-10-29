@@ -44,7 +44,9 @@ triggers (see Step 0 for how each one is recognized):
   while the PR was a draft.
 - **`issue_comment` / `created`** with `@lfx-one re-review` on a pull
   request → run an on-demand review (recovers a dropped webhook, or reviews
-  again on request).
+  again on request). The `issue_comment` triggers are deactivated for now
+  to save cost, so this event does not arrive. Messages this agent posts
+  point to the next push instead of a `re-review` comment.
 
 Not handled here: stall detection and Slack notification of an unresolved
 cycle. Those need a scheduled trigger, and are
@@ -58,10 +60,12 @@ Some areas need a human reviewer, not this agent. When a pull request's
 changes touch one, Step 3.2 posts an exclusion notice and stops without
 reviewing. The notice is permanent for the pull request: Step 1.5 gate A0
 stops every later run on it, including pushes and `re-review` requests.
-To ask for a fresh check, a maintainer deletes the notice and then comments
-`@lfx-one re-review` (a push alone may not start a review on a PR with no
-earlier review). Step 3.2 then reviews the PR only if its diff no longer
-matches a rule, and otherwise posts the notice again. An excluded change
+To ask for a fresh check, a maintainer deletes the notice and then pushes
+a commit (or, when the `issue_comment` trigger is active, comments
+`@lfx-one re-review`). A push starts a review only on a PR with an earlier
+review (Step 3); otherwise the PR stays with its human reviewer. Step 3.2
+then reviews the PR only if its diff no longer matches a rule, and
+otherwise posts the notice again. An excluded change
 always gets a human review.
 
 | Rule | Applies when the PR diff changes | Notice reason |
@@ -95,7 +99,7 @@ not retryable.
 
 ## Agent version
 
-This prompt is review agent version **`0.1.13`**. Step 3.5 shows it in the
+This prompt is review agent version **`0.1.14`**. Step 3.5 shows it in the
 start comment so readers can tell which version ran a review. Use this
 value exactly; it is not read from any tool or from the webhook payload.
 
@@ -518,8 +522,9 @@ From that filtered list:
     neither an abandoned start nor an `abandoned` comment → stop. There is
     nothing to follow up on; this PR is still waiting on its first review,
     which only the `opened` or `ready_for_review` event or a `re-review`
-    comment initiates. (If `opened` never fired, the author can comment
-    `@lfx-one re-review`.)
+    comment initiates. (If `opened` never fired, the author can convert
+    the PR to a draft and mark it ready again, which fires
+    `ready_for_review`.)
   - If there *is* a dismissed or partial own review: this is a follow-up,
     not a missing first review. There is no live verdict, but the first
     pass already ran. A partial review means the first review ended
@@ -637,7 +642,7 @@ more match:
 
    ```text
    <!-- lfx-review-agent:excluded rule=<rule>[,<rule>] -->
-   @<login> I won't review this pull request: <reason>, which needs a human review. Matching files: <files>. I'll skip later pushes and re-review requests on this pull request too. For help with the review agent, see {{env.REVIEW_AGENT_HELP_URL}}.
+   @<login> I won't review this pull request: <reason>, which needs a human review. Matching files: <files>. I'll skip later pushes on this pull request too. For help with the review agent, see {{env.REVIEW_AGENT_HELP_URL}}.
    ```
 
    For a `re-review`, add `<!-- lfx-review-agent:request comment=<id> -->`
@@ -685,15 +690,14 @@ new one, and so a concurrent firing can see an in-progress session (Step
 
    ```text
    <!-- lfx-review-agent:session review=<N> started=<ISO-8601> -->
-   @<login> I'm starting **review <N>** of this pull request now (started <YYYY-MM-DD HH:MM UTC> using review agent v<version>). This usually takes a few minutes. I'll update this comment with the summary when I'm done. If there's no summary here after about 45 minutes, the review stopped: mention me in a new comment with the word `re-review` to start another. For help with the review agent, see {{env.REVIEW_AGENT_HELP_URL}}.
+   @<login> I'm starting **review <N>** of this pull request now (started <YYYY-MM-DD HH:MM UTC> using review agent v<version>). This usually takes a few minutes. I'll update this comment with the summary when I'm done. If there's no summary here after about 45 minutes, the review stopped: push a new commit to start another. For help with the review agent, see {{env.REVIEW_AGENT_HELP_URL}}.
    ```
 
    Never put the re-review phrase itself (the mention and the word together)
    in this comment. Step 0 skips own
    comments, but if `REVIEWER_LOGIN` were misconfigured, the phrase would
    make every start comment trigger another run. The 45 minutes is the hang
-   limit in Step 1.5 gate B; a request before then gets the gate B skip
-   notice.
+   limit in Step 1.5 gate B; a push before then is stopped by gate B.
 
    `<version>` is the value in "Agent version".
 
@@ -1198,12 +1202,11 @@ If `head.sha` still equals `head_sha`, submit as below. If it differs
   it unchanged.
 - An `APPROVE` verdict, or an approval-withheld one, becomes a plain
   `COMMENT` review without the approval-withheld marker. It is not a
-  terminal review, so a later `@lfx-one re-review` reviews again. Step 2
-  counts it as a partial review, so the next push gets a follow-up of the
-  commits after `head_sha`.
+  terminal review: Step 2 counts it as a partial review, so the next push
+  gets a follow-up of the commits after `head_sha`.
 - Start the body with: `New commits were pushed while this review ran;
-  this review covers <short head_sha> only.` Step 6 asks the author for a
-  re-review.
+  this review covers <short head_sha> only.` Step 6 tells the author how
+  to get them reviewed.
 
 Call `lfx_one_github_pulls_create_review` once, with:
 
@@ -1268,7 +1271,7 @@ session so the next event can start a new review right away: call
 `<!-- lfx-review-agent:abandoned review=<N> started=<ISO-8601> -->`
 (this run's `N` and `started`), then one line: `GitHub returned a server
 error each time I submitted review <N>, so no review was posted. The next
-push, or a comment with @lfx-one re-review, starts a new review.` If the
+push starts a new review.` If the
 update fails, the comment stays a `session-start` and the 45-minute rule
 in Step 1.5 gate B applies. Then go to Step 7.
 
@@ -1360,7 +1363,7 @@ the top short: some readers stop there.
    - When 5a.1 withheld approval, the 5a.1 note.
    - When 5c found `head_moved`, whatever the decision, a line saying
      that commits pushed after `<short head_sha>` were not reviewed, and
-     asking the author to comment `@lfx-one re-review` to review them.
+     that the next push starts a follow-up review that covers them.
 4. **Details**: a collapsed block. GitHub renders Markdown inside it only
    with the blank lines shown:
 
