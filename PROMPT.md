@@ -392,9 +392,9 @@ per transition, so a debounce would lose it (for example, after a skip
 notice on a draft), and Step 3 already stops when HEAD has not moved since
 the last review.
 
-- If it is a `session-summary` (or other review feedback: the summary
-  marker, the legacy preview line, or a Decision section from Step 6),
-  post one debounce notice via `lfx_one_github_issues_create_comment` and
+- If it is a `session-summary` (a session marker plus any summary signal
+  from class 7: the summary marker, the footer text, or the legacy preview
+  line), post one debounce notice via `lfx_one_github_issues_create_comment` and
   stop. Link the report (`html_url` of that most-recent summary comment):
 
   ```text
