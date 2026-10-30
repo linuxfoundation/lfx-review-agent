@@ -2,8 +2,9 @@
 # SPDX-License-Identifier: MIT
 
 # Operations for the custom Guild integration that acts as the `lfx-one`
-# GitHub account. It mirrors the 12 operations the review agent uses from
-# `guildai~github`. The credential is a
+# GitHub account. It holds the 17 operations the review agent uses: the 12
+# it first used from `guildai~github`, a reaction, and four reads for CI
+# checks and required checks. The credential is a
 # fine-grained token owned by `lfx-one`, connected with
 # `guild integration connect`. Never put the token in this file.
 #
@@ -13,7 +14,7 @@
 openapi: 3.0.3
 info:
   title: LFX One GitHub
-  version: 1.0.2
+  version: 1.0.4
   description: GitHub REST operations the LFX review agent performs as lfx-one.
 servers:
   - url: https://api.github.com
@@ -265,6 +266,68 @@ paths:
           schema: { type: string }
       responses:
         "200": { $ref: "#/components/responses/OkObjectOrList" }
+  /repos/{owner}/{repo}/branches/{branch}:
+    get:
+      operationId: repos_get_branch
+      summary: Get a branch, with its required status checks
+      parameters:
+        - $ref: "#/components/parameters/owner"
+        - $ref: "#/components/parameters/repo"
+        - name: branch
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { $ref: "#/components/responses/Ok" }
+  /repos/{owner}/{repo}/rules/branches/{branch}:
+    get:
+      operationId: repos_get_branch_rules
+      summary: List the ruleset rules that apply to a branch
+      parameters:
+        - $ref: "#/components/parameters/owner"
+        - $ref: "#/components/parameters/repo"
+        - name: branch
+          in: path
+          required: true
+          schema: { type: string }
+        - $ref: "#/components/parameters/per_page"
+        - $ref: "#/components/parameters/page"
+      responses:
+        "200": { $ref: "#/components/responses/OkList" }
+  /repos/{owner}/{repo}/commits/{ref}/check-runs:
+    get:
+      operationId: checks_list_for_ref
+      summary: List check runs with one name for a commit
+      parameters:
+        - $ref: "#/components/parameters/owner"
+        - $ref: "#/components/parameters/repo"
+        - name: ref
+          in: path
+          required: true
+          schema: { type: string }
+        - name: check_name
+          in: query
+          required: true
+          schema: { type: string }
+        - $ref: "#/components/parameters/per_page"
+        - $ref: "#/components/parameters/page"
+      responses:
+        "200": { $ref: "#/components/responses/Ok" }
+  /repos/{owner}/{repo}/commits/{ref}/status:
+    get:
+      operationId: repos_get_combined_status
+      summary: Get the combined commit status for a commit
+      parameters:
+        - $ref: "#/components/parameters/owner"
+        - $ref: "#/components/parameters/repo"
+        - name: ref
+          in: path
+          required: true
+          schema: { type: string }
+        - $ref: "#/components/parameters/per_page"
+        - $ref: "#/components/parameters/page"
+      responses:
+        "200": { $ref: "#/components/responses/Ok" }
   /users/{username}:
     get:
       operationId: users_get_by_username
