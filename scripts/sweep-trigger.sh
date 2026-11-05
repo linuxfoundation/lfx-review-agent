@@ -4,7 +4,7 @@
 #
 # Set the hourly sweep trigger's repository list (README.md, Triggers).
 # The list is built from the workspace's active `pull_request synchronize`
-# triggers for lfx-review-agent, so onboarding stays the one source of
+# triggers for lfx-review-agent and REVIEW_AGENT, so onboarding is the source of
 # truth. Rerun it after onboarding a repository.
 #
 # Usage: WS=<workspace-id> scripts/sweep-trigger.sh [--apply]
@@ -18,6 +18,7 @@
 set -euo pipefail
 
 AGENT=linux-foundation~lfx-review-agent
+SOURCE_AGENT=${REVIEW_AGENT:-$AGENT}
 NAME="lfx-review-agent sweep"
 MINUTE=17
 
@@ -42,10 +43,10 @@ while :; do
   offset=$((offset + PAGE))
 done
 
-input=$(jq -c --arg ag "$AGENT" '
+input=$(jq -c --arg ag "$AGENT" --arg selected "$SOURCE_AGENT" '
   [.[] | select(.type == "webhook" and .deactivated_at == null
     and .event_type == "pull_request" and .action == "synchronize"
-    and .agent.full_name == $ag)
+    and (.agent.full_name == $ag or .agent.full_name == $selected))
     | .service_config.repo
     | select(test("^linuxfoundation/[A-Za-z0-9._-]+$"))]
   | unique
@@ -62,7 +63,7 @@ fi
 
 # With no repository left, the sweep would keep its old list: stop it.
 if [ "$count" = 0 ]; then
-  echo "no active synchronize triggers for $AGENT; nothing to sweep" >&2
+  echo "no active synchronize triggers for $AGENT or $SOURCE_AGENT; nothing to sweep" >&2
   [ -n "$ids" ] || exit 1
   echo "deactivate  $NAME ($ids)"
   if $apply; then

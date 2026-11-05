@@ -5,14 +5,14 @@
 
 Guild.ai Native agent `linux-foundation~lfx-review-agent`: an automated PR
 reviewer for the LFX organization. It is a port of the
-`dd-pr-review-auto-cloud` Claude Code skill. There is no application code;
-the agent is a prompt plus a Guild manifest.
+`dd-pr-review-auto-cloud` Claude Code skill. The root is a Native prompt
+and manifest; `controller/` contains the optional TypeScript pre-check.
 
 ## Files
 
 | File | Role |
 | --- | --- |
-| `PROMPT.md` | The agent's system prompt. All behavior lives here. |
+| `PROMPT.md` | The Native reviewer's instructions and review policy. |
 | `guild.yaml` | Guild manifest: the `lfx-one-github` integration and its 21 tools. |
 | `README.md` | Setup: onboarding steps, workspace variables, triggers, credential policy, test checklist. |
 | `scripts/onboard-repo.sh` | Creates a repository's webhook triggers (onboarding step 4). |

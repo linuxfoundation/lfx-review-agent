@@ -25,7 +25,7 @@ TRIGGERS=(
   "issue_comment created re-review comment"
 )
 
-AGENT=linux-foundation~lfx-review-agent
+AGENT=${REVIEW_AGENT:-linux-foundation~lfx-review-agent}
 # The issue_comment trigger gets this Guild comment filter, so only a
 # comment that starts with `@lfx-one re-review` starts a session. Without
 # it, every comment starts a model run. Keep in sync with
