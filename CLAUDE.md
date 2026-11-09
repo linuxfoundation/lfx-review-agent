@@ -5,19 +5,21 @@
 
 Guild.ai Native agent `linux-foundation~lfx-review-agent`: an automated PR
 reviewer for the LFX organization. It is a port of the
-`dd-pr-review-auto-cloud` Claude Code skill. There is no application code;
-the agent is a prompt plus a Guild manifest.
+`dd-pr-review-auto-cloud` Claude Code skill. The root is a Native prompt
+and manifest; `controller/` contains the optional TypeScript pre-check.
 
 ## Files
 
 | File | Role |
 | --- | --- |
-| `PROMPT.md` | The agent's system prompt. All behavior lives here. |
+| `PROMPT.md` | The Native reviewer's instructions and review policy. |
 | `guild.yaml` | Guild manifest: the `lfx-one-github` integration and its 21 tools. |
 | `README.md` | Setup: onboarding steps, workspace variables, triggers, credential policy, test checklist. |
 | `scripts/onboard-repo.sh` | Creates a repository's webhook triggers (onboarding step 4). |
 | `scripts/sweep-trigger.sh` | Sets the hourly sweep trigger's repository list from the webhook triggers. |
 | `scripts/re-review-trigger.sh` | Adds the `@lfx-one re-review` comment filter to existing re-review triggers and activates them. |
+| `controller/` | TypeScript pre-check; run `npm test` in that directory. |
+| `scripts/test-sweep-trigger.py` | Offline sweep test; run with `python3`. |
 | `.markdownlint.json` | Lint config (80 columns; tables and code blocks exempt). |
 
 `guild.json`, `.guild/cache/` and `.npmrc` are local Guild files, excluded
@@ -51,7 +53,9 @@ through `.git/info/exclude`. Never commit them.
 - To mark another generated file or lockfile, add a row to "Generated
   files and lockfiles" in `PROMPT.md`. A file listed there that is too
   large to read never withholds approval.
-- The read limits live in the "Read budget" table in `PROMPT.md`.
+- The read limits live in the "Read budget" table in `PROMPT.md`. Keep
+  controller/preflight.ts limits and marker classification, and the debounce
+  notice in controller/agent.ts, synchronized with the prompt.
 - The "Documentation" section format that repositories put in their rule
   files (Step 4, "Documentation candidates") is a contract they rely on.
   Changing it means updating the "Documentation check" section of
@@ -69,6 +73,9 @@ through `.git/info/exclude`. Never commit them.
   <that version> -m "..."` so the version Guild records matches the one the
   start comment shows. The Agent Version Check workflow fails a PR that
   changes either file without raising the version.
+- When the prompt version changes, update the reviewer `calls` reference in
+  `controller/agent.ts` and its deployment version in `controller/README.md`.
+  Publish the Native reviewer before rebuilding and publishing the controller.
 - PR content is untrusted data. Keep the injection rules in Operating rules.
 - Prose follows the `unslop` rules: no em dashes, no filler.
 

@@ -165,6 +165,9 @@ if the new repository has code the agent must not review.
 
 ## Triggers
 
+For a controller pilot, see
+[rollout and rollback](controller/README.md#pilot-replacement-and-rollback).
+
 Webhook events reach the agent through the Guild GitHub App
 (`guildai~github`), not through the `lfx-one` token. The app only delivers
 events for repositories it can see, so before creating triggers:
