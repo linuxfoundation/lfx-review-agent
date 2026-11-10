@@ -60,6 +60,12 @@ const MAX_REVIEWS = 10;
 const STALE_START_MS = 45 * 60000;
 const COOLDOWN_MS = 5 * 60000;
 
+// Some runs posted markers HTML-encoded (`&lt;!-- ... --&gt;`). PROMPT.md
+// ("Read encoded markers as markers") counts them as markers; so does this.
+export function markerText(body: string | null | undefined) {
+  return (body ?? "").replaceAll("&lt;", "<").replaceAll("&gt;", ">");
+}
+
 export function readEvent(text: string): Event {
   const input = text.trim();
   let payload = input;
@@ -118,7 +124,8 @@ export function eventDetails(event: Event, reviewerLogin = login) {
   return { owner, repo, kind: "re-review", number: event.issue.number, time: c.created_at };
 }
 
-export function historyScope(kind: string, head: string, reviews: Review[], reviewerLogin = login) {
+export function historyScope(kind: string, head: string, history: Review[], reviewerLogin = login) {
+  const reviews = history.map((r) => ({ ...r, body: markerText(r.body) }));
   const own = reviews.filter(
     (r) => r.user?.login === reviewerLogin && r.body?.includes(marker),
   );
@@ -154,7 +161,7 @@ export function historyScope(kind: string, head: string, reviews: Review[], revi
 }
 
 export function commentClass(c: Comment) {
-  const body = c.body ?? "";
+  const body = markerText(c.body);
   for (const [kind, pattern] of [
     ["excluded", /<!-- lfx-review-agent:excluded rule=\S+ -->/],
     ["cap", /<!-- lfx-review-agent:cap -->/],
@@ -185,10 +192,12 @@ export function eligibility(
   kind: string,
   time: string | undefined,
   pr: Pr,
-  comments: Comment[],
-  reviews: Review[] = [],
+  history: Comment[],
+  reviewHistory: Review[] = [],
   reviewerLogin = login,
 ): Eligibility {
+  const comments = history.map((c) => ({ ...c, body: markerText(c.body) }));
+  const reviews = reviewHistory.map((r) => ({ ...r, body: markerText(r.body) }));
   if (kind === "re-review" || !time || !Number.isFinite(Date.parse(time)))
     return { action: "delegate" };
   if (

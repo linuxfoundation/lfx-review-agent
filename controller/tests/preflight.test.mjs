@@ -162,6 +162,26 @@ test("other tools using the same account do not count as own reviews", () => {
 test("missing first review delegates recovery instead of skipping", () => {
   assert.equal(historyScope("synchronize", "a", []).mode, "undecided");
 });
+test("HTML-encoded own markers count as markers; other logins still do not", () => {
+  const encode = (s) => s.replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+  const review = encode("<!-- lfx-review-agent:review --> <!-- lfx-review-agent:review-of review=1 -->");
+  assert.deepEqual(historyScope("synchronize", "b", [marked("CHANGES_REQUESTED", "a", { body: review })]), {
+    mode: "delta", from: "a", to: "b",
+  });
+  assert.equal(
+    historyScope("synchronize", "b", [marked("CHANGES_REQUESTED", "a", { body: review, user: { login: "other" } })]).mode,
+    "undecided",
+  );
+  const time = "2026-11-04T01:00:00Z";
+  const start = encode("<!-- lfx-review-agent:session review=2 started=2026-11-04T00:58:00Z -->");
+  const own = (body) => ({ id: 2, body, updated_at: "2026-11-04T00:58:30Z", user: { login }, html_url: "https://example.test/c" });
+  const prB = { ...pr, head: { sha: "b" } };
+  assert.equal(eligibility("synchronize", time, prB, [own(start)]).action, "running");
+  assert.equal(
+    eligibility("synchronize", time, prB, [own(start + encode("\n<!-- lfx-review-agent:summary -->"))]).action,
+    "cooldown",
+  );
+});
 test("safe skips preserve cap, recent-comment, in-progress and exclusion side effects", () => {
   const comment = {
     id: 1,
