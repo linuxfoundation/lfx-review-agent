@@ -62,8 +62,18 @@ const COOLDOWN_MS = 5 * 60000;
 
 // Some runs posted markers HTML-encoded (`&lt;!-- ... --&gt;`). PROMPT.md
 // ("Read encoded markers as markers") counts them as markers; so does this.
+// Code spans and fenced blocks stay encoded: echoed PR text lives there, and
+// before 0.1.26 the sanitizing rule kept `&`, so it can hold encoded markers.
 export function markerText(body: string | null | undefined) {
-  return (body ?? "").replaceAll("&lt;", "<").replaceAll("&gt;", ">");
+  return (body ?? "").replace(/(```[\s\S]*?(?:```|$)|`[^`\n]*`)|&lt;|&gt;/g,
+    (match, code: string | undefined) => code ?? (match === "&lt;" ? "<" : ">"));
+}
+
+// Decodes only this agent's own bodies; other accounts' text stays as written.
+function decodeOwn<T extends { body?: string | null; user: { login: string } | null }>(
+  items: T[], reviewerLogin: string,
+): T[] {
+  return items.map((i) => i.user?.login === reviewerLogin ? { ...i, body: markerText(i.body) } : i);
 }
 
 export function readEvent(text: string): Event {
@@ -125,7 +135,7 @@ export function eventDetails(event: Event, reviewerLogin = login) {
 }
 
 export function historyScope(kind: string, head: string, history: Review[], reviewerLogin = login) {
-  const reviews = history.map((r) => ({ ...r, body: markerText(r.body) }));
+  const reviews = decodeOwn(history, reviewerLogin);
   const own = reviews.filter(
     (r) => r.user?.login === reviewerLogin && r.body?.includes(marker),
   );
@@ -196,8 +206,8 @@ export function eligibility(
   reviewHistory: Review[] = [],
   reviewerLogin = login,
 ): Eligibility {
-  const comments = history.map((c) => ({ ...c, body: markerText(c.body) }));
-  const reviews = reviewHistory.map((r) => ({ ...r, body: markerText(r.body) }));
+  const comments = decodeOwn(history, reviewerLogin);
+  const reviews = decodeOwn(reviewHistory, reviewerLogin);
   if (kind === "re-review" || !time || !Number.isFinite(Date.parse(time)))
     return { action: "delegate" };
   if (

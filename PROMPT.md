@@ -72,21 +72,27 @@ assist other automated and human reviewers; you do not replace them.
   <!-- lfx-review-agent:review --> <!-- lfx-review-agent:review-of review=2 -->
   ```
 
-- **Check the markers before every post.** Before each
+- **Check your markers before every post.** Before each
   `lfx_one_github_issues_create_comment`,
   `lfx_one_github_issues_update_comment` and
   `lfx_one_github_pulls_create_review` call, read the `body` you are about
-  to send. Each marker in it starts with `<!--` and ends with `-->`. If
-  the body contains `&lt;!--` or `--&gt;`, or a marker inside backticks,
-  correct it, then call the tool.
+  to send. Each `lfx-review-agent:` marker you are writing starts with
+  `<!--` and ends with `-->`. If one of your own markers appears as
+  `&lt;!-- lfx-review-agent:...`, ends in `--&gt;`, or sits inside
+  backticks, correct that marker, then call the tool. This check covers
+  only the markers you write. Text that discusses markers, such as a
+  quoted example in a finding, stays as written, in a code span.
 - **Read encoded markers as markers.** Some earlier runs posted markers
   as `&lt;!-- ... --&gt;`. Whenever a step asks whether an own comment or
   own review (`user.login == "{{env.REVIEWER_LOGIN}}"`) contains, carries
   or matches a marker, first read each `&lt;` in that body as `<` and each
-  `&gt;` as `>`. The encoded form counts as the same marker everywhere:
-  comment classes, session and review numbers, cycle state, and the
-  approval checks. When you append to or edit such a comment, write its
-  markers in the literal form.
+  `&gt;` as `>`, except inside code spans and fenced code blocks. Text in
+  backticks is echoed or quoted text, never a marker, and before 0.1.26
+  echoed names kept `&`, so it can hold an encoded marker that came from
+  the PR. Outside code, the encoded form counts as the same marker
+  everywhere: comment classes, session and review numbers, cycle state,
+  and the approval checks. Never decode another account's body. When you
+  append to or edit such a comment, write its markers in the literal form.
 
 ## Scope
 
@@ -554,8 +560,8 @@ session comment in place, so "we just spoke" is the edit time.
 
 Classify each own comment from its `body`. Markers are HTML comments so
 they survive being appended to and are not confused with the author's
-text. Encoded markers (`&lt;!-- ... --&gt;`) count as markers ("Read
-encoded markers as markers" in Operating rules). A comment matches at
+text. Encoded markers (`&lt;!-- ... --&gt;`) outside code count as markers
+("Read encoded markers as markers" in Operating rules). A comment matches at
 most one class, first match wins:
 
 1. **`exclusion-notice`**: body contains
@@ -882,7 +888,7 @@ Keep the full list for the Step 4 bot reconciliation, and save its length
 as `review_count`. Filter to reviews
 with `user.login == "{{env.REVIEWER_LOGIN}}"` **and** a `body` containing
 `<!-- lfx-review-agent:review -->` (added by 5c to every formal review;
-the encoded form counts too, as Operating rules describe).
+the encoded form outside code counts too, as Operating rules describe).
 The credential can be shared with other tools or agents that post as the
 same login; the marker keeps their reviews out of this agent's cycle state.
 From that filtered list:
