@@ -224,3 +224,17 @@ test("compiled handoff preserves repository privacy and undecided scope", async 
   assert.equal(envelope.prepared.pr.base.repo.private, true);
   assert.equal(envelope.prepared.scope.mode, "undecided");
 });
+test("failed or malformed GitHub reads hand the original input to the reviewer", async () => {
+  const input = { ...event, action: "synchronize" };
+  for (const overrides of [
+    { lfx_one_github_issues_list_comments: async () => ({ message: "not a list" }) },
+    { lfx_one_github_pulls_list_reviews: async () => { throw Error("502 Bad Gateway"); } },
+    { lfx_one_github_pulls_get: async () => ({ state: "open" }) },
+  ]) {
+    const result = await dispatch([comment(start)], [], input, overrides);
+    assert.equal(result.worker, 1);
+    assert.deepEqual(result.calls.at(-1), ["reviewer", { text: JSON.stringify(input) }]);
+    assert.match(result.text, /^Fallback: controller read failed \(.+\)\. reviewed$/);
+    assert.equal(result.calls.some(([name]) => name === "lfx_one_github_issues_add_labels"), false);
+  }
+});

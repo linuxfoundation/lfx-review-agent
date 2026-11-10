@@ -53,38 +53,47 @@ async function run(
     repo: details.repo,
     pull_number: details.number,
   };
-  const pr = prMetadata.parse(await task.tools.lfx_one_github_pulls_get(params));
-  if ((pr.state !== "open" || pr.merged || pr.draft) && details.kind !== "re-review") {
-    return {
-      type: "text" as const,
-      text: "Skipped: pull request is closed, merged or a draft. No model called.",
-    };
-  }
-  const reviews = [];
-  let page = 1;
-  while (true) {
-    const batch = reviewMetadata.array().parse(await task.tools.lfx_one_github_pulls_list_reviews({
-      ...params,
-      per_page: 100,
-      page,
-    }));
-    reviews.push(...batch);
-    if (batch.length < 100) break;
-    page += 1;
-  }
-  const comments = [];
-  page = 1;
-  while (true) {
-    const batch = commentMetadata.array().parse(await task.tools.lfx_one_github_issues_list_comments({
-      owner: params.owner,
-      repo: params.repo,
-      issue_number: details.number,
-      per_page: 100,
-      page,
-    }));
-    comments.push(...batch);
-    if (batch.length < 100) break;
-    page += 1;
+  let pr: z.infer<typeof prMetadata>;
+  const reviews: z.infer<typeof reviewMetadata>[] = [];
+  const comments: z.infer<typeof commentMetadata>[] = [];
+  try {
+    pr = prMetadata.parse(await task.tools.lfx_one_github_pulls_get(params));
+    if ((pr.state !== "open" || pr.merged || pr.draft) && details.kind !== "re-review") {
+      return {
+        type: "text" as const,
+        text: "Skipped: pull request is closed, merged or a draft. No model called.",
+      };
+    }
+    let page = 1;
+    while (true) {
+      const batch = reviewMetadata.array().parse(await task.tools.lfx_one_github_pulls_list_reviews({
+        ...params,
+        per_page: 100,
+        page,
+      }));
+      reviews.push(...batch);
+      if (batch.length < 100) break;
+      page += 1;
+    }
+    page = 1;
+    while (true) {
+      const batch = commentMetadata.array().parse(await task.tools.lfx_one_github_issues_list_comments({
+        owner: params.owner,
+        repo: params.repo,
+        issue_number: details.number,
+        per_page: 100,
+        page,
+      }));
+      comments.push(...batch);
+      if (batch.length < 100) break;
+      page += 1;
+    }
+  } catch (error) {
+    // Fail open: a failed read or an unexpected response shape must not drop
+    // the review. The reviewer gets the original input and reads GitHub itself.
+    const reason = (error instanceof Error ? error.message : String(error)).replace(/\s+/g, " ").slice(0, 200);
+    const result = await task.tools.reviewer({ text: input.text });
+    return { type: "text" as const, text: `Fallback: controller read failed (${reason}). ${result.text}` };
   }
   const scope = historyScope(details.kind, pr.head.sha, reviews, login);
   const gate = eligibility(details.kind, details.time, pr, comments, reviews, login);
