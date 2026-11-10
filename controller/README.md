@@ -4,6 +4,9 @@ The root remains the Native reviewer. Publish its prepared-input support
 as 0.1.25 before deploying the controller, which calls that Native version.
 Install both agents in the same workspace with `REVIEWER_LOGIN` configured.
 The reviewer's Guild model policy selects the model; neither agent pins it.
+If a GitHub read fails or returns an unexpected shape, the controller fails
+open: it passes the original input to the reviewer, which applies every gate
+itself, and reports `Fallback: controller read failed (...)`.
 
 ## Test before replacing triggers
 
