@@ -60,9 +60,9 @@ lines are longer than 80 columns and must not wrap (research R7).
 
 ## Phase 2: Foundational (blocks every story)
 
-- [ ] T004 In `PROMPT.md` "Agent version", set the version to one patch
+- [X] T004 In `PROMPT.md` "Agent version", set the version to one patch
   past PR #44's (`0.1.27` when PR #44 is `0.1.26`).
-- [ ] T005 In `PROMPT.md`, add a section `## Finding topics` right after
+- [X] T005 In `PROMPT.md`, add a section `## Finding topics` right after
   `## Generated files and lockfiles` (research R6). It holds:
   - A sentence: every finding records a dimension slug and a topic, and
     Step 5b writes both in the finding marker. Never write a value that
@@ -83,11 +83,11 @@ lines are longer than 80 columns and must not wrap (research R7).
     documentation `[nit]` is `docs-comment`. A finding that fits no row
     is `other`. "To add a topic, add a row. Never rename a released
     topic: recorded findings carry it."
-- [ ] T006 In `PROMPT.md` Step 4 "Review the dimensions", in "Record
+- [X] T006 In `PROMPT.md` Step 4 "Review the dimensions", in "Record
   each finding with `severity` ... `privacy`", add `topic`, and say that
   `dimension` is recorded as its slug from "Finding topics". Add: "Step
   5b gives each new finding its `id`."
-- [ ] T007 In `PROMPT.md` Step 5b, before the inline comment body
+- [X] T007 In `PROMPT.md` Step 5b, before the inline comment body
   template, add an "IDs" paragraph (spec FR-010, FR-011, FR-014;
   research R3):
   - "A new finding's ID is `r<N>-f<k>`: `N` is this run's review number
