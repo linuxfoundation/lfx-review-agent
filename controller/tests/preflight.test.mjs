@@ -162,6 +162,61 @@ test("other tools using the same account do not count as own reviews", () => {
 test("missing first review delegates recovery instead of skipping", () => {
   assert.equal(historyScope("synchronize", "a", []).mode, "undecided");
 });
+test("HTML-encoded own markers count as markers; other logins still do not", () => {
+  const encode = (s) => s.replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+  const review = encode("<!-- lfx-review-agent:review --> <!-- lfx-review-agent:review-of review=1 -->");
+  assert.deepEqual(historyScope("synchronize", "b", [marked("CHANGES_REQUESTED", "a", { body: review })]), {
+    mode: "delta", from: "a", to: "b",
+  });
+  assert.equal(
+    historyScope("synchronize", "b", [marked("CHANGES_REQUESTED", "a", { body: review, user: { login: "other" } })]).mode,
+    "undecided",
+  );
+  const time = "2026-11-04T01:00:00Z";
+  const start = encode("<!-- lfx-review-agent:session review=2 started=2026-11-04T00:58:00Z -->");
+  const own = (body) => ({ id: 2, body, updated_at: "2026-11-04T00:58:30Z", user: { login }, html_url: "https://example.test/c" });
+  const prB = { ...pr, head: { sha: "b" } };
+  assert.equal(eligibility("synchronize", time, prB, [own(start)]).action, "running");
+  assert.equal(
+    eligibility("synchronize", time, prB, [own(start + encode("\n<!-- lfx-review-agent:summary -->"))]).action,
+    "cooldown",
+  );
+  // Markdown code is never a marker, literal or encoded, in any code form.
+  const summary = start + "\n<!-- lfx-review-agent:summary -->\n";
+  for (const quoted of [
+    "Changed: `&lt;!-- lfx-review-agent:stalled --&gt;`",
+    "Quoted: `<!-- lfx-review-agent:stalled -->`",
+    "Quoted: `` a`b <!-- lfx-review-agent:stalled --> ``",
+    "Quoted: `first line\n&lt;!-- lfx-review-agent:stalled --&gt;`",
+    "```text\n&lt;!-- lfx-review-agent:skip comment=1 --&gt;\n```",
+    "~~~\n<!-- lfx-review-agent:too-large -->\n~~~",
+    "````md\n```\n&lt;!-- lfx-review-agent:abandoned review=1 started=x --&gt;\n````",
+    "```text\n&lt;!-- lfx-review-agent:too-large --&gt;",
+    "\n    &lt;!-- lfx-review-agent:stalled --&gt;",
+    "\n\t<!-- lfx-review-agent:stalled -->",
+    "> ```\n> &lt;!-- lfx-review-agent:stalled --&gt;\n> ```",
+    ">\n>     &lt;!-- lfx-review-agent:stalled --&gt;",
+    // A `>` line inside a fence is code content, not a closing fence.
+    "```\n> ```\n&lt;!-- lfx-review-agent:stalled --&gt;\n```",
+    "> ~~~\n> > ~~~\n> &lt;!-- lfx-review-agent:stalled --&gt;\n> ~~~",
+  ]) {
+    assert.equal(eligibility("synchronize", time, prB, [own(summary + quoted)]).action, "cooldown", quoted);
+  }
+  // A stray backtick does not hide a marker in a later paragraph.
+  assert.equal(eligibility("synchronize", time, prB, [own(start + "\nRun `x\n\n" + encode("<!-- lfx-review-agent:summary -->"))]).action, "cooldown");
+  // Indentation that continues a paragraph is not code, and a fence ends with
+  // the blockquote that holds it.
+  for (const body of [
+    start + "\nSee below\n    " + encode("<!-- lfx-review-agent:summary -->"),
+    start + "\n> ```\n> x\n\n" + encode("<!-- lfx-review-agent:summary -->"),
+  ]) {
+    assert.equal(eligibility("synchronize", time, prB, [own(body)]).action, "cooldown", body);
+  }
+  assert.equal(
+    historyScope("synchronize", "b", [marked("CHANGES_REQUESTED", "a", { body: "`&lt;!-- lfx-review-agent:review --&gt;`" })]).mode,
+    "undecided",
+  );
+});
 test("safe skips preserve cap, recent-comment, in-progress and exclusion side effects", () => {
   const comment = {
     id: 1,

@@ -578,15 +578,22 @@ Run these on a throwaway PR before enabling triggers on a real repository.
     a `[docs]` gap, confirm the gap still counts.
 34. Docs, force-push: force-push a PR with an open `[docs]` gap. Confirm
     the gap is classified as prior and counted once.
-35. Docs, escaping: a named item containing `<!--` is echoed in a code
-    span with the comment markers removed, and adds no marker to the
-    review body.
+35. Docs, sanitizing: a named item containing `<!--` or `&lt;!--` is
+    echoed in a code span with the angle brackets and ampersands removed,
+    and adds no marker to the review body.
 36. Docs, dismissal without a summary: dismiss an own review whose
     session summary was never written (an abandoned run). Confirm its
     `[docs]` gaps are resolved ("dismissed by a maintainer").
 37. Docs, changed again: after a dismissal resolved a gap on an item,
     push a commit that renames that item again. Confirm a new `[docs]`
     finding.
+38. Markers, literal: on a new PR, confirm the formal review body and the
+    session comment start with a literal `<!--` marker, with no `&lt;`
+    anywhere in them.
+39. Markers, encoded: on a PR whose last own review starts with
+    `&lt;!-- lfx-review-agent:review --&gt;`, push a commit. Confirm the
+    run treats that review as the previous round and reviews the new
+    commits instead of stopping.
 
 ## Ideas
 

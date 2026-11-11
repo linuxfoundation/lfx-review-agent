@@ -1,6 +1,6 @@
 {
   "name": "@guildai/linux-foundation~lfx-review-controller",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "author": "The Linux Foundation and contributors",
   "type": "module",
   "exports": {

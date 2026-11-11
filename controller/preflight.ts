@@ -60,6 +60,67 @@ const MAX_REVIEWS = 10;
 const STALE_START_MS = 45 * 60000;
 const COOLDOWN_MS = 5 * 60000;
 
+// Text used for marker matching (PROMPT.md "Read encoded markers as markers").
+// Markdown code is removed first: this agent never writes a marker in code,
+// while echoed or quoted text always sits there and may hold a literal or,
+// from before 0.1.26, an encoded marker. Some runs posted markers
+// HTML-encoded (`&lt;!-- ... --&gt;`); outside code those count as markers.
+export function markerText(body: string | null | undefined) {
+  const kept: string[] = [];
+  let fence: { run: string; depth: number } | undefined;
+  let indented = false;
+  let blank = true;
+  let prevDepth = 0;
+  for (const line of (body ?? "").split("\n")) {
+    if (fence) {
+      // Inside a fence, only the blockquote levels that hold it are
+      // containers; any further `>` is code content, so it can't close it.
+      const held = line.match(new RegExp(`^(?: {0,3}> ?){${fence.depth}}`));
+      if (held) {
+        const close = line.slice(held[0].length).match(/^ {0,3}(`{3,}|~{3,})\s*$/);
+        prevDepth = fence.depth;
+        if (close && close[1][0] === fence.run[0] && close[1].length >= fence.run.length) fence = undefined;
+        blank = true;
+        continue;
+      }
+      // A fence also ends with the blockquote that holds it.
+      fence = undefined;
+    }
+    // Blockquote prefixes are containers: code inside them is still code.
+    const quote = line.match(/^(?: {0,3}> ?)*/)![0];
+    const depth = (quote.match(/>/g) ?? []).length;
+    const inner = line.slice(quote.length);
+    const open = inner.match(/^ {0,3}(`{3,}|~{3,})(.*)$/);
+    if (open && !(open[1][0] === "`" && open[2].includes("`"))) {
+      fence = { run: open[1], depth };
+      indented = false;
+      continue;
+    }
+    // An indented code block starts a block (after a blank line, a fence or
+    // a change of blockquote level; it can't interrupt a paragraph) and runs
+    // until a non-blank line with less indentation.
+    const isBlank = inner.trim() === "";
+    if (depth !== prevDepth) blank = true;
+    prevDepth = depth;
+    if (!isBlank) indented = /^(?: {4}|\t| {0,3}\t)/.test(inner) && (indented || blank);
+    blank = isBlank;
+    if (indented) continue;
+    kept.push(line);
+  }
+  return kept.join("\n")
+    // An inline span closes with a backtick run of the same length, within
+    // one paragraph, so a stray backtick can't hide markers further down.
+    .replace(/(?<!`)(`+)(?!`)(?:(?!\n[ \t]*\n)[\s\S])*?(?<!`)\1(?!`)/g, " ")
+    .replaceAll("&lt;", "<").replaceAll("&gt;", ">");
+}
+
+// Decodes only this agent's own bodies; other accounts' text stays as written.
+function decodeOwn<T extends { body?: string | null; user: { login: string } | null }>(
+  items: T[], reviewerLogin: string,
+): T[] {
+  return items.map((i) => i.user?.login === reviewerLogin ? { ...i, body: markerText(i.body) } : i);
+}
+
 export function readEvent(text: string): Event {
   const input = text.trim();
   let payload = input;
@@ -118,7 +179,8 @@ export function eventDetails(event: Event, reviewerLogin = login) {
   return { owner, repo, kind: "re-review", number: event.issue.number, time: c.created_at };
 }
 
-export function historyScope(kind: string, head: string, reviews: Review[], reviewerLogin = login) {
+export function historyScope(kind: string, head: string, history: Review[], reviewerLogin = login) {
+  const reviews = decodeOwn(history, reviewerLogin);
   const own = reviews.filter(
     (r) => r.user?.login === reviewerLogin && r.body?.includes(marker),
   );
@@ -154,7 +216,7 @@ export function historyScope(kind: string, head: string, reviews: Review[], revi
 }
 
 export function commentClass(c: Comment) {
-  const body = c.body ?? "";
+  const body = markerText(c.body);
   for (const [kind, pattern] of [
     ["excluded", /<!-- lfx-review-agent:excluded rule=\S+ -->/],
     ["cap", /<!-- lfx-review-agent:cap -->/],
@@ -185,10 +247,12 @@ export function eligibility(
   kind: string,
   time: string | undefined,
   pr: Pr,
-  comments: Comment[],
-  reviews: Review[] = [],
+  history: Comment[],
+  reviewHistory: Review[] = [],
   reviewerLogin = login,
 ): Eligibility {
+  const comments = decodeOwn(history, reviewerLogin);
+  const reviews = decodeOwn(reviewHistory, reviewerLogin);
   if (kind === "re-review" || !time || !Number.isFinite(Date.parse(time)))
     return { action: "delegate" };
   if (

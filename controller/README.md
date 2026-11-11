@@ -1,7 +1,7 @@
 # Review controller
 
-The root remains the Native reviewer. Publish its prepared-input support
-as 0.1.25 before deploying the controller, which calls that Native version.
+The root remains the Native reviewer. Publish it as 0.1.26 before
+deploying the controller, which calls that Native version.
 Install both agents in the same workspace with `REVIEWER_LOGIN` configured.
 The reviewer's Guild model policy selects the model; neither agent pins it.
 If a GitHub read fails or returns an unexpected shape, the controller fails
