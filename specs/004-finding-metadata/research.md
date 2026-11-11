@@ -97,9 +97,11 @@ depends on.
   the gap stays without an ID: no backfill.
 
 **Rationale**: `N` is already unique on the PR, including abandoned runs
-(Step 1.5 `next_review_number`), so IDs cannot collide across runs, even
-overlapping ones. Numbering before the first submit keeps IDs stable
-through the retries in Step 5c.
+(Step 1.5 `next_review_number`), so IDs from different runs do not
+collide. Overlapping runs are guarded by the Step 3.5 ownership check,
+which is not a hard lock; a collision there is possible but needs two
+runs to take the same review number. Numbering before the first submit
+keeps IDs stable through the retries in Step 5c.
 
 **Alternatives considered**:
 

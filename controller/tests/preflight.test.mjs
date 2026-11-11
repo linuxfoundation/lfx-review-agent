@@ -3,6 +3,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  commentClass,
   eligibility,
   eventDetails,
   historyScope,
@@ -260,13 +261,17 @@ test("safe skips preserve cap, recent-comment, in-progress and exclusion side ef
     true,
   );
 });
+
 test("finding markers do not change own-review classification", () => {
+  const findingLines = [
+    "<!-- lfx-review-agent:finding id=r2-f1 severity=minor dimension=correctness topic=edge-case -->",
+    "<!-- lfx-review-agent:finding-status id=r1-f1 status=open resolution=no-response -->",
+  ];
   const body = [
     "<!-- lfx-review-agent:review --> <!-- lfx-review-agent:review-of review=2 -->",
     "One earlier finding is still open.",
     "",
-    "<!-- lfx-review-agent:finding-status id=r1-f1 status=open resolution=no-response -->",
-    "<!-- lfx-review-agent:finding id=r2-f1 severity=minor dimension=correctness topic=edge-case -->",
+    ...findingLines,
   ].join("\n");
   const requested = marked("CHANGES_REQUESTED", "a", { body });
   assert.deepEqual(historyScope("synchronize", "b", [requested]), {
@@ -277,4 +282,9 @@ test("finding markers do not change own-review classification", () => {
   assert.equal(historyScope("opened", "b", [requested]).mode, "skip");
   const commented = marked("COMMENTED", "a", { body });
   assert.equal(historyScope("opened", "b", [commented]).mode, "full");
+  // Without the review marker, finding lines alone never make an own review.
+  const unmarked = marked("CHANGES_REQUESTED", "a", { body: findingLines.join("\n") });
+  assert.equal(historyScope("synchronize", "b", [unmarked]).mode, "undecided");
+  // Finding lines in a conversation comment are not a session or notice.
+  assert.equal(commentClass({ user: { login }, body: findingLines.join("\n") }), "other");
 });

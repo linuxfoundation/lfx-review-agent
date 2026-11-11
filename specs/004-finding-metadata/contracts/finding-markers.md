@@ -15,8 +15,10 @@ data.
 - Every value is a slug from the tables below, or a finding ID. No value
   comes from PR content.
 - Only markers in the agent's own inline comments and own review bodies
-  count (`user.login` is `REVIEWER_LOGIN`). Readers skip Markdown code,
-  as PR #44's reading rule does.
+  count (`user.login` is `REVIEWER_LOGIN`). The agent's own reads skip
+  Markdown code (PR #44). The collector does not skip it today, so the
+  agent strips the comment delimiters from any marker it quotes; the
+  reader notes below ask the collector to skip code too.
 
 ## finding
 
@@ -29,7 +31,7 @@ data.
 | `id` | `r<N>-f<k>`: `N` the review number, `k` from 1 within that review |
 | `severity` | `blocking`, `minor`, `nit`, `question`: the label the finding is posted with |
 | `dimension` | `correctness`, `security`, `performance`, `test-coverage`, `code-style`, `architecture`, `api-compliance`, `data-privacy`, `data-subject-rights`, `data-residency`, `documentation` |
-| `topic` | a row of the Topics list in [spec.md](../spec.md) (FR-040), `other` as fallback |
+| `topic` | a row of the "Finding topics" table in `PROMPT.md` (seeded from spec FR-040), `other` as fallback |
 
 Dimension slugs map to the Step 4 names: Correctness, Security,
 Performance, Test Coverage, Code Style & Consistency, Architecture, API
@@ -37,6 +39,8 @@ Compliance (Go + goa), Data Privacy, Data Subject Rights, Data
 Residency, Documentation.
 
 ### Placement
+
+IDs in these examples are illustrative.
 
 Inline comment: the last line. The first line stays the severity tag.
 

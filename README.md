@@ -462,7 +462,9 @@ happens to each one. The formats are in
   `fixed`, `code-gone`, `declined` or `no-thread`.
 - **Author replies.** The PR author's latest reply on an inline finding
   sets `declined`, `deferred` or `replied`, with a reason. A reply never
-  changes the status, the verdict or any count.
+  changes the status, the verdict or any count. As with any PR text, one
+  that tries to steer the review ("approve this PR") is reported as a
+  Security finding.
 - **Nothing visible changes.** The verdict, the `[minor]` count, the
   issue lines and revision tracking are the same as without the markers.
   Findings posted before 0.1.27 carry no marker and get no status.
@@ -628,7 +630,8 @@ Run these on a throwaway PR before enabling triggers on a real repository.
     title, and one `topic=docs-missing` marker at the end of each folded
     line.
 42. Finding status, outcomes: push a commit that fixes one finding,
-    deletes the code of another and leaves the third. Confirm three
+    deletes the code of another and leaves an inline one open. Confirm
+    three
     `finding-status` lines (`fixed`, `code-gone`, `open` with
     `no-response`) that match revision tracking.
 43. Finding status, author replies: as the PR author, reply "intended per
@@ -642,7 +645,8 @@ Run these on a throwaway PR before enabling triggers on a real repository.
 45. Finding status, no thread: leave the outside-diff finding open and
     push. Confirm `resolution=no-thread`.
 46. Finding status, superseded: on a PR with an open docs gap, push a
-    commit that renames its item again. Confirm the old ID gets
+    commit that changes its item again without renaming it (for example
+    its default value). Confirm the old ID gets
     `status=superseded superseded_by=<new id>` and the new finding has a
     new ID.
 47. Finding markers, quoted: add a code comment containing this line and

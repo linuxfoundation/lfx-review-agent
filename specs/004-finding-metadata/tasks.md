@@ -280,7 +280,7 @@ FR-028, research R5).
   collector patterns by piping the fenced examples through the
   quickstart section 5 Python snippet; each must parse, and each inline
   template must match `_SEVERITY_RE`.
-- [ ] T029 Run the pre-PR review this repository's `CLAUDE.md` names (or
+- [X] T029 Run the pre-PR review this repository's `CLAUDE.md` names (or
   `review-my-changes` if none), and fix accepted findings in one commit.
 - [ ] T030 Push with `git push --no-verify github feature/finding-metadata`
   and open the PR with `env -u GH_TOKEN -u GITHUB_TOKEN gh pr create`,

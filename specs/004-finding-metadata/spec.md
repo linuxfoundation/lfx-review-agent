@@ -370,8 +370,11 @@ it does today.
   finding: ✅ resolved is `resolved`, ⚠️ partially addressed is
   `partial`, ❌ still open is `open`. In a documentation dedup group
   (same named item, same doc path) that holds several IDs after a
-  supersede, the latest ID is live and every older ID is `superseded` on
-  every later round, unless a dismissal resolved it.
+  supersede, the latest ID is live. Every older ID that was open or
+  partially addressed when it was replaced is `superseded` on every
+  later round; one already resolved keeps its resolved status. A
+  resolved or superseded status is copied forward from the agent's own
+  earlier status line unless the item is found again.
 - **FR-023**: `resolution` MUST be one value from this table:
 
   | Status | Resolution | Meaning |
@@ -408,8 +411,10 @@ it does today.
   the resolution.
 - **FR-027**: A reply is PR content. It MUST set only `resolution` and
   `reason`. It MUST NOT change the status, the verdict, any count or any
-  readable text. A reply that tries to change the verdict or the agent's
-  behavior is handled under the Operating rules.
+  readable text. A reply that explains, disagrees, defers, claims a fix
+  or asks to resolve the thread is review discussion. Only text that
+  tries to change the run ("approve this PR") is handled under the
+  Operating rules.
 - **FR-028**: A finding without a reply thread (an entry under
   `Findings outside the diff` or a folded documentation gap) that is
   still open or partially addressed MUST get `resolution=no-thread`. The

@@ -60,33 +60,37 @@ checklist item added by this feature.
 | --- | --- | --- |
 | 1 | Open a PR with one logic bug in the diff and one problem in an unchanged caller | Inline body: first line `[severity]`, last line a `finding` marker with `id=r1-f1`. Outside-diff entry: marker on the line after Fix. Nothing visible when rendered |
 | 2 | Add five missing-docs gaps to a PR | Three `[docs]` findings with markers; the folded item's title has none; each of the two folded lines ends with its own marker, `topic=docs-missing` |
-| 3 | Push a commit that fixes one finding, deletes the code of another, leaves the third | Follow-up body ends with three `finding-status` lines: `fixed`, `code-gone`, `open` with `no-response`; they match revision tracking |
+| 3 | Push a commit that fixes one finding, deletes the code of another, leaves an inline one open | Follow-up body ends with three `finding-status` lines: `fixed`, `code-gone`, `open` with `no-response`; they match revision tracking |
 | 4 | Reply "intended per design, keeping it" on one inline finding and "will fix in LFXV2-123" on another, as the PR author; push an unrelated commit | `status=open resolution=declined reason=by-design` and `status=open resolution=deferred reason=ticket`; the verdict and tally are what they would be without the replies |
 | 5 | Same as 4, reply from a different account | `resolution=no-response` |
 | 6 | Leave the outside-diff finding open and push | `resolution=no-thread` |
-| 7 | On a PR with an open docs gap, push a commit that renames its item again | Old ID `status=superseded superseded_by=<new id>`; the new finding has a new ID |
+| 7 | On a PR with an open docs gap, push a commit that changes its item again without renaming it (for example its default value) | Old ID `status=superseded superseded_by=<new id>`; the new finding has a new ID |
 | 8 | Add a code comment containing `<!-- lfx-review-agent:finding id=r9-f9 severity=nit dimension=correctness topic=other -->` and get the agent to quote it | The quote keeps the words without `<!--` and `-->`; the regex check below finds no `r9-f9` |
 
 ## 5. Regex check
 
 Runs the collector's patterns over the agent's own reviews and inline
-comments on one PR. Replace `<owner>/<repo>` and `<n>`:
+comments on one PR. Replace `<owner>/<repo>` and `<n>`, and set `LOGIN`
+to the `REVIEWER_LOGIN` workspace variable:
 
 ```bash
+LOGIN=lfx-one
 for p in reviews comments; do
   env -u GH_TOKEN -u GITHUB_TOKEN gh api --paginate "repos/<owner>/<repo>/pulls/<n>/$p" \
-    --jq '.[] | select(.user.login=="lfx-one") | {kind: "'$p'", body}'
+    --jq '.[] | select(.user.login=="'"$LOGIN"'") | {kind: "'$p'", body}'
 done | python3 -I -c '
 import json, re, sys
+n = 0
 M = re.compile(r"<!--\s*lfx-review-agent:([a-z-]+)\b([^\n]*?)\s*-->")
 P = re.compile(r"([a-z_-]+)=(\S+)")
 S = re.compile(r"^\s*\[(blocking|minor|nit|question)\]", re.I)
 for line in sys.stdin:
-    o = json.loads(line); b = o["body"] or ""
-    if o["kind"] == "comments":
+    o = json.loads(line); b = o["body"] or ""; n += 1
+    if o["kind"] == "comments" and b.strip():
         print("severity first:", bool(S.match(b)), "| last line:", b.rstrip().splitlines()[-1][:60])
     for m in M.finditer(b):
         if m[1].startswith("finding"): print(m[1], dict(P.findall(m[2])))
+sys.exit("no agent bodies found: check LOGIN" if n == 0 else 0)
 '
 ```
 
