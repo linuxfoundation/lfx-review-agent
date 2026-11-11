@@ -282,7 +282,7 @@ not retryable.
 
 ## Agent version
 
-This prompt is review agent version **`0.1.27`**. Step 3.5 shows it in the
+This prompt is review agent version **`0.1.28`**. Step 3.5 shows it in the
 start comment so readers can tell which version ran a review. Use this
 value exactly; it is not read from any tool or from the webhook payload.
 
@@ -1770,8 +1770,9 @@ is not a dismissal is `fixed`.
 An earlier ID whose latest own `finding-status` line (in own review bodies
 from Step 2, read like the `finding` markers) is `resolved` keeps that
 line as written, unless this round finds the problem back in the PR and
-classifies it ⚠️ or ❌. A `superseded` line is final: copy it forward
-unchanged.
+classifies it ⚠️ or ❌. A `superseded` status is final, but write it
+with `superseded_by` set to the group's live ID this round (the docs
+dedup rule below), so a gap replaced twice points at the latest finding.
 
 For `partial` and `open`, `resolution` is `no-thread` when the finding
 has no own inline comment: an entry under `Findings outside the diff`, a
@@ -2425,8 +2426,10 @@ that carries the review marker. Confirm `state` matches the event submitted
 (`APPROVED`, `CHANGES_REQUESTED`, or `COMMENTED` for an approval-withheld
 or `head_moved` review). If an
 approve or request-changes verdict reads back as `COMMENTED`, the wrong
-event was used. Submit a new review with the correct event, the same
-body and comments, and the same finding IDs, before reporting done. If
+event was used. Submit a new review with the correct event and the same
+body, with `comments` empty: the first review already posted the inline
+comments, and they keep their markers and IDs. Do this before reporting
+done. If
 an approval-withheld review reads back as `APPROVED`, stop and report
 it as a fault in Step 7 so a maintainer can dismiss it.
 Capture the review's `html_url` for the final report.

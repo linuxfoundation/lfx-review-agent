@@ -1,6 +1,6 @@
 # Review controller
 
-The root remains the Native reviewer. Publish it as 0.1.27 before
+The root remains the Native reviewer. Publish it as 0.1.28 before
 deploying the controller, which calls that Native version.
 Install both agents in the same workspace with `REVIEWER_LOGIN` configured.
 The reviewer's Guild model policy selects the model; neither agent pins it.

@@ -373,8 +373,9 @@ it does today.
   supersede, the latest ID is live. Every older ID that was open or
   partially addressed when it was replaced is `superseded` on every
   later round; one already resolved keeps its resolved status. A
-  resolved or superseded status is copied forward from the agent's own
-  earlier status line unless the item is found again.
+  resolved status is copied forward from the agent's own earlier status
+  line unless the item is found again. A superseded status stays
+  superseded, with `superseded_by` refreshed to the group's live ID.
 - **FR-023**: `resolution` MUST be one value from this table:
 
   | Status | Resolution | Meaning |
