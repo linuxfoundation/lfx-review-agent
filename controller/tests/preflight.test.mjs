@@ -196,6 +196,9 @@ test("HTML-encoded own markers count as markers; other logins still do not", () 
     "\n\t<!-- lfx-review-agent:stalled -->",
     "> ```\n> &lt;!-- lfx-review-agent:stalled --&gt;\n> ```",
     ">\n>     &lt;!-- lfx-review-agent:stalled --&gt;",
+    // A `>` line inside a fence is code content, not a closing fence.
+    "```\n> ```\n&lt;!-- lfx-review-agent:stalled --&gt;\n```",
+    "> ~~~\n> > ~~~\n> &lt;!-- lfx-review-agent:stalled --&gt;\n> ~~~",
   ]) {
     assert.equal(eligibility("synchronize", time, prB, [own(summary + quoted)]).action, "cooldown", quoted);
   }

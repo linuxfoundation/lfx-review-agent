@@ -72,19 +72,24 @@ export function markerText(body: string | null | undefined) {
   let blank = true;
   let prevDepth = 0;
   for (const line of (body ?? "").split("\n")) {
+    if (fence) {
+      // Inside a fence, only the blockquote levels that hold it are
+      // containers; any further `>` is code content, so it can't close it.
+      const held = line.match(new RegExp(`^(?: {0,3}> ?){${fence.depth}}`));
+      if (held) {
+        const close = line.slice(held[0].length).match(/^ {0,3}(`{3,}|~{3,})\s*$/);
+        prevDepth = fence.depth;
+        if (close && close[1][0] === fence.run[0] && close[1].length >= fence.run.length) fence = undefined;
+        blank = true;
+        continue;
+      }
+      // A fence also ends with the blockquote that holds it.
+      fence = undefined;
+    }
     // Blockquote prefixes are containers: code inside them is still code.
     const quote = line.match(/^(?: {0,3}> ?)*/)![0];
     const depth = (quote.match(/>/g) ?? []).length;
     const inner = line.slice(quote.length);
-    if (fence && depth >= fence.depth) {
-      const close = inner.match(/^ {0,3}(`{3,}|~{3,})\s*$/);
-      if (close && close[1][0] === fence.run[0] && close[1].length >= fence.run.length) fence = undefined;
-      blank = true;
-      prevDepth = depth;
-      continue;
-    }
-    // A fence also ends with the blockquote that holds it.
-    fence = undefined;
     const open = inner.match(/^ {0,3}(`{3,}|~{3,})(.*)$/);
     if (open && !(open[1][0] === "`" && open[2].includes("`"))) {
       fence = { run: open[1], depth };
