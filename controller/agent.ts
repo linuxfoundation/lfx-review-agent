@@ -17,7 +17,7 @@ import { prMetadata, reviewMetadata, commentMetadata } from "./metadata.js";
 
 const inputSchema = z.object({ type: z.literal("text"), text: z.string() });
 const outputSchema = z.object({ type: z.literal("text"), text: z.string() });
-const reviewer = guildAgentTool({ inputSchema: z.object({ text: z.string() }), outputSchema, calls: "@guildai/linux-foundation~lfx-review-agent@0.1.26" });
+const reviewer = guildAgentTool({ inputSchema: z.object({ text: z.string() }), outputSchema, calls: "@guildai/linux-foundation~lfx-review-agent@0.1.27" });
 function withOutput<I, O>(source: Pick<Tool<I>, "inputSchema">, endpoint: Endpoint, outputSchema: z.ZodType<O>): Tool<I, O> {
   return guildServiceTool("lfx-one-github", {
     description: endpoint.description, inputSchema: source.inputSchema, outputSchema,
