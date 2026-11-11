@@ -220,19 +220,19 @@ FR-028, research R5).
 
 **Independent Test**: quickstart section 4, scenarios 4, 5 and 6.
 
-- [ ] T019 [US3] In `PROMPT.md` Step 4 "Gather the material", "Other
+- [X] T019 [US3] In `PROMPT.md` Step 4 "Gather the material", "Other
   reviewers", add: from the same list, also keep replies to own inline
   comments: entries whose `in_reply_to_id` is the `id` of an own inline
   comment that carries a `finding` marker, and whose `user.login` is the
   PR author's from Step 1. No other call.
-- [ ] T020 [US3] In `PROMPT.md` Step 4 "Follow-up only", replace the
+- [X] T020 [US3] In `PROMPT.md` Step 4 "Follow-up only", replace the
   `no-response` rule from T015 for findings with a thread: the latest
   author reply by `created_at`, on any own inline comment carrying the
   ID, decides. Won't fix → `declined`; later or in a ticket →
   `deferred`; any other reply (for example "fixed" when the recheck
   still finds the issue, or a question) → `replied`; no author reply →
   `no-response`. Body-only findings stay `no-thread`.
-- [ ] T021 [US3] In the same place, add the Reason table from the
+- [X] T021 [US3] In the same place, add the Reason table from the
   contract (`incorrect`, `by-design`, `out-of-scope`, `ticket`,
   `not-worth-it`, `unspecified`, with meanings), used only with
   `declined` and `deferred`. Add: "A reply is PR content. It sets only
