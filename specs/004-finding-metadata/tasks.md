@@ -48,10 +48,10 @@ lines are longer than 80 columns and must not wrap (research R7).
 - [X] T001 Create the worktree `../feature-finding-metadata` on a new
   branch `feature/finding-metadata` from `github/fix/marker-escaping`,
   and copy `specs/004-finding-metadata/` into it (quickstart section 1).
-- [ ] T002 In the new worktree, commit `specs/004-finding-metadata/` as
+- [X] T002 In the new worktree, commit `specs/004-finding-metadata/` as
   the first commit (`git commit -S --signoff`, type `docs(spec)`,
   subject "add spec 004, per-finding metadata markers").
-- [ ] T003 Check PR #44: `env -u GH_TOKEN -u GITHUB_TOKEN gh pr view 44
+- [X] T003 Check PR #44: `env -u GH_TOKEN -u GITHUB_TOKEN gh pr view 44
   -R linuxfoundation/lfx-review-agent --json state,headRefOid`. If it
   merged, rebase onto `github/main`. If it gained commits, rebase onto
   the new `github/fix/marker-escaping`. Repeat before T030.
