@@ -42,7 +42,8 @@ through `.git/info/exclude`. Never commit them.
 - Comment and review markers (`<!-- lfx-review-agent:review -->`,
   `:review-of`, `:session`, `:superseded`, `:cap`, `:debounce`, `:skip`,
   `:request`, `:abandoned`, `:approval-withheld`, `:excluded`, `:summary`,
-  `:stalled`, `:too-large`, `:docs-reminder`)
+  `:stalled`, `:too-large`, `:docs-reminder`, `:finding`,
+  `:finding-status`)
   are read back by later runs, and so is the `[docs]` tag in an inline
   comment's title line. Changing one breaks cycle state on open PRs.
   The same holds for the `lfx-review-agent-pending` label and the
@@ -53,6 +54,9 @@ through `.git/info/exclude`. Never commit them.
 - To mark another generated file or lockfile, add a row to "Generated
   files and lockfiles" in `PROMPT.md`. A file listed there that is too
   large to read never withholds approval.
+- To add a finding topic, add a row to "Finding topics" in `PROMPT.md`.
+  Never rename a released topic, dimension slug or `finding-status`
+  value: the engineering-metrics collector and later runs read them.
 - The read limits live in the "Read budget" table in `PROMPT.md`. Keep
   controller/preflight.ts limits and marker classification, and the debounce
   notice in controller/agent.ts, synchronized with the prompt.

@@ -1,6 +1,6 @@
 # Feature Specification: Per-finding metadata markers
 
-**Feature Branch**: `feat/add-review-meta-data`
+**Feature Branch**: `feature/finding-metadata`
 
 **Created**: 2026-11-10
 
@@ -190,7 +190,7 @@ first review, and that the readable revision tracking agrees.
    `status=superseded superseded_by=<new id>` and the new finding gets a
    new ID.
 5. **Given** a review a maintainer dismissed that requested changes for
-   documentation gaps, **When** the next review runs, **Then** those gaps
+   documentation gaps, **When** the next follow-up runs, **Then** those gaps
    get `status=resolved resolution=maintainer-dismissed`.
 6. **Given** a follow-up, **When** the agent records statuses, **Then**
    the verdict, the tally, the issue lines and revision tracking are the
@@ -245,10 +245,12 @@ it does today.
   There is no backfill.
 - **Re-posted inline item.** Step 5b allows a fresh inline comment for a
   still-open item when its guidance changed. It carries the original ID,
-  not a new one.
+  not a new one. An item posted before rollout has no ID, so its re-post
+  gets a new one.
 - **422 retry.** Step 5c moves every inline finding into the body under
   `Findings outside the diff`. Each keeps its marker and ID. The marker
-  sits on the line after its Fix line, like any outside-diff entry.
+  sits on the line after its Fix line, like any outside-diff entry
+  (after the closing fence when Fix ends with a code block).
 - **New commits during the review (`head_moved`).** The plain `COMMENT`
   review keeps every marker. Its findings get statuses in the next
   follow-up like any other.
@@ -281,9 +283,10 @@ it does today.
   agent never copies it into its own comment (FR-033), and a follow-up
   reads IDs only from its own comments and reviews.
 - **Approval-withheld, too-large and exclusion reviews.** An
-  approval-withheld review carries findings and their markers as usual.
-  A gate A1 revoke or an exclusion revoke is not a Step 4 review: it has
-  no findings and classifies nothing, so it carries no markers of either
+  approval-withheld review carries findings and their markers as usual,
+  and so does a review that carries the too-large note. A gate A1
+  revoke or an exclusion revoke is not a Step 4 review: it has no
+  findings and classifies nothing, so it carries no markers of either
   kind.
 
 ## Requirements *(mandatory)*
@@ -308,6 +311,9 @@ it does today.
     the severity tag, so `_SEVERITY_RE` still matches the body.
   - Entry under `Findings outside the diff`: the line after its Fix
     line.
+  - When Fix ends with a fenced code block, the marker goes after the
+    closing fence, never inside it: a marker in code renders as text and
+    later runs set code aside.
   - Folded documentation gap: the end of that gap's line, so the list
     stays one list and each line still holds one marker.
   - Never on the first or second line of a review body, which hold the
@@ -332,7 +338,7 @@ it does today.
   An item re-posted inline because its guidance changed (Step 5b) MUST
   reuse its ID.
 - **FR-012**: A documentation gap that the docs dedup rule matches to an
-  earlier finding (same named item after escaping, same doc path) MUST
+  earlier finding (same named item after sanitizing, same doc path) MUST
   keep the earlier finding's ID. Only the supersede case gets a new ID.
 - **FR-013**: A follow-up MUST learn earlier IDs from the `finding`
   markers in the agent's own inline comments and own review bodies that
@@ -342,7 +348,8 @@ it does today.
   in own bodies.
 - **FR-014**: IDs MUST be assigned once, before the first submit call.
   When the 422 retry moves inline findings into the body, each MUST keep
-  its marker unchanged, on the line after its Fix line. A 5xx resend
+  its marker unchanged, on the line after its Fix line (after the
+  closing fence when Fix ends with a code block). A 5xx resend
   MUST reuse the same IDs.
 
 #### Finding-status marker
@@ -361,24 +368,26 @@ it does today.
   `deferred`. For `superseded`, see FR-024.
 - **FR-022**: `status` MUST match the follow-up's classification of that
   finding: ✅ resolved is `resolved`, ⚠️ partially addressed is
-  `partial`, ❌ still open is `open`. The supersede case is
-  `superseded`.
+  `partial`, ❌ still open is `open`. In a documentation dedup group
+  (same named item, same doc path) that holds several IDs after a
+  supersede, the latest ID is live and every older ID is `superseded` on
+  every later round, unless a dismissal resolved it.
 - **FR-023**: `resolution` MUST be one value from this table:
 
   | Status | Resolution | Meaning |
   | --- | --- | --- |
   | `resolved` | `fixed` | a commit in this PR fixed it |
-  | `resolved` | `code-gone` | the code the finding pointed at was removed |
+  | `resolved` | `code-gone` | the file, function or lines the finding cited are no longer in the PR; every other fix is `fixed` |
   | `resolved` | `maintainer-dismissed` | resolved by the existing maintainer override (documentation findings only) |
   | `partial`, `open` | `declined` | the author replied that they won't fix it |
   | `partial`, `open` | `deferred` | the author replied that it will be fixed later or in a ticket |
   | `partial`, `open` | `replied` | the author replied, but neither declined nor deferred |
   | `partial`, `open` | `no-response` | the finding has a thread and the author has not replied |
-  | `partial`, `open` | `no-thread` | the finding has no reply thread (outside the diff or folded) |
+  | `partial`, `open` | `no-thread` | the finding has no reply thread (outside the diff, folded, or moved into the body by a 422 retry) |
 
 - **FR-024**: A `superseded` status MUST leave out `resolution` and
-  `reason` and MUST add `superseded_by=<id>`, the ID of the finding that
-  replaced it.
+  `reason` and MUST add `superseded_by=<id>`, the live ID of its
+  documentation dedup group (FR-022).
 - **FR-025**: `reason` MUST be one value from this table:
 
   | Reason | Meaning |
@@ -563,8 +572,8 @@ after it.
   collector counts them as unknown markers. The rollout is coordinated
   with that change.
 - PR #44 (`fix/marker-escaping`) merges first, or this work builds on
-  its branch. PR #44 renames the "Escaping" rule to "Sanitizing echoed
-  names"; FR-012's "after escaping" follows whatever name is on `main`.
+  its branch. PR #44 merged on 2026-11-11 and renamed the "Escaping"
+  rule to "Sanitizing echoed names", which FR-012 uses.
 - The hand-off file `HANDOFF-finding-metadata.md` was not committed to
   this repository; its text came in with the request, so there is no
   file to delete.

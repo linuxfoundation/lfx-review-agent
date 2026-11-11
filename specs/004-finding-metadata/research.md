@@ -66,8 +66,9 @@ depends on.
   the new findings of this review from 1.
 - Numbering happens once, in Step 5b, when the finding list is final
   and before the first `lfx_one_github_pulls_create_review` call: the
-  inline comments in `comments` order, then entries under `Findings
-  outside the diff` in body order, then folded gaps in line order. The
+  new inline comments in `comments` order, then new entries under
+  `Findings outside the diff` in body order, then folded gaps in line
+  order. The
   ID is stored on the finding record. The 422 retry moves inline
   findings into the body with their marker unchanged, on the line after
   their Fix line. A 5xx resend sends the same payload. Neither renumbers.
@@ -263,9 +264,9 @@ older reviews may already hold quoted markers.
 **Decision**: PR #44's "Check your markers before every post" rule
 gains, for `lfx_one_github_pulls_create_review`:
 
-- the number of `finding` markers equals the number of new findings,
-  folded gaps included, and each inline comment's last line is its
-  marker;
+- the number of `finding` markers equals the number of findings the
+  review posts (new findings, re-posted items and folded gaps), and
+  each inline comment's last line is its marker;
 - every `severity`, `dimension`, `topic`, `status`, `resolution` and
   `reason` value is in its table;
 - on a follow-up, each earlier ID has exactly one `finding-status` line.

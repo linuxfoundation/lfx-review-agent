@@ -51,6 +51,8 @@ Fix: Add `takeUntilDestroyed(this.destroyRef)` before `subscribe`.
 ```
 
 Entry under `Findings outside the diff`: the line after its Fix line.
+When Fix ends with a fenced code block, the marker goes after the closing
+fence, never inside it, here and in an inline comment.
 
 ```text
 [blocking] `src/routes/projects.ts:88` Handler skips the tenant check
@@ -122,15 +124,18 @@ Never on the first or second line of a review body.
 - A re-review of the same head, an initial review, a gate A1 revoke and
   an exclusion revoke write none.
 
-Example, follow-up review 2:
+Example, follow-up review 2 on the PR whose first review posted the
+findings above (`r1-f2` was another inline finding):
 
 ```text
 <!-- lfx-review-agent:review --> <!-- lfx-review-agent:review-of review=2 -->
-Two of the three earlier findings are fixed; one is still open.
+Three of the five earlier findings are resolved; two are still open.
 
-<!-- lfx-review-agent:finding-status id=r1-f1 status=resolved resolution=fixed -->
+<!-- lfx-review-agent:finding-status id=r1-f1 status=open resolution=declined reason=by-design -->
 <!-- lfx-review-agent:finding-status id=r1-f2 status=resolved resolution=code-gone -->
-<!-- lfx-review-agent:finding-status id=r1-f3 status=open resolution=declined reason=by-design -->
+<!-- lfx-review-agent:finding-status id=r1-f3 status=resolved resolution=fixed -->
+<!-- lfx-review-agent:finding-status id=r1-f4 status=resolved resolution=fixed -->
+<!-- lfx-review-agent:finding-status id=r1-f5 status=open resolution=no-thread -->
 ```
 
 ## Parsing check

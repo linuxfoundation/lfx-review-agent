@@ -246,18 +246,18 @@ FR-028, research R5).
 
 ## Phase 6: Polish and cross-cutting
 
-- [ ] T022 [P] In `CLAUDE.md` "Editing PROMPT.md", add `:finding` and
+- [X] T022 [P] In `CLAUDE.md` "Editing PROMPT.md", add `:finding` and
   `:finding-status` to the marker list, and a bullet: "To add a finding
   topic, add a row to 'Finding topics' in `PROMPT.md`. Never rename a
   released topic, dimension slug or `finding-status` value: the
   engineering-metrics collector and later runs read them."
-- [ ] T023 [P] In `README.md`, add a short section "Finding metadata"
+- [X] T023 [P] In `README.md`, add a short section "Finding metadata"
   after "Documentation check": what the two markers record, that they
   are hidden, that the engineering-metrics Review Agent page reads them,
   and a link to `specs/004-finding-metadata/contracts/finding-markers.md`.
   Add test checklist items 40 to 47 from quickstart section 4, scenarios
   1 to 8, after item 39.
-- [ ] T024 [P] In `controller/tests/preflight.test.mjs`, add a test
+- [X] T024 [P] In `controller/tests/preflight.test.mjs`, add a test
   "finding markers do not change own-review classification": a
   `marked("CHANGES_REQUESTED", "a", { body })` whose body is the review
   marker line, a sentence, then a `finding-status` line and an inline
@@ -265,18 +265,18 @@ FR-028, research R5).
   [review])` `{ mode: "delta", from: "a", to: "b" }`; the same body on a
   `COMMENTED` review without approval-withheld still counts as partial
   (research R10). Run `npm test` in `controller/`.
-- [ ] T025 [P] Update `controller/agent.ts` `calls:
+- [X] T025 [P] Update `controller/agent.ts` `calls:
   "@guildai/linux-foundation~lfx-review-agent@<version>"` and the
   version in `controller/README.md` to T004's version; raise
   `controller/package.json` and `controller/package-lock.json` one patch
   past PR #44's.
-- [ ] T026 Run `markdownlint PROMPT.md README.md CLAUDE.md
+- [X] T026 Run `markdownlint PROMPT.md README.md CLAUDE.md
   specs/004-finding-metadata` and `(cd controller && npm test)`. Check
   `grep -n '{{' PROMPT.md` shows only `env.REVIEWER_LOGIN` and
   `env.REVIEW_AGENT_HELP_URL`.
-- [ ] T027 Read every new or changed line in `PROMPT.md`, `README.md`
+- [X] T027 Read every new or changed line in `PROMPT.md`, `README.md`
   and `CLAUDE.md` against the unslop rules: no em dashes, no filler.
-- [ ] T028 Check every marker example in `PROMPT.md` against the
+- [X] T028 Check every marker example in `PROMPT.md` against the
   collector patterns by piping the fenced examples through the
   quickstart section 5 Python snippet; each must parse, and each inline
   template must match `_SEVERITY_RE`.

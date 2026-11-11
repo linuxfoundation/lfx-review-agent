@@ -34,7 +34,7 @@ they are.
 ## Technical Context
 
 **Language/Version**: Prompt (`PROMPT.md`), Markdown docs; one
-TypeScript test (`controller/tests/preflight.test.mjs`).
+JavaScript test (`controller/tests/preflight.test.mjs`).
 
 **Primary Dependencies**: Guild Native agent runtime; integration
 `linux-foundation~lfx-one-github` 1.0.7 (unchanged); PR #44
@@ -98,7 +98,7 @@ specs/004-finding-metadata/
 ├── contracts/
 │   └── finding-markers.md
 ├── checklists/requirements.md
-└── tasks.md             # /speckit-tasks, not created here
+└── tasks.md
 ```
 
 ### Source (repository root)

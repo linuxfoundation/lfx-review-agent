@@ -260,3 +260,21 @@ test("safe skips preserve cap, recent-comment, in-progress and exclusion side ef
     true,
   );
 });
+test("finding markers do not change own-review classification", () => {
+  const body = [
+    "<!-- lfx-review-agent:review --> <!-- lfx-review-agent:review-of review=2 -->",
+    "One earlier finding is still open.",
+    "",
+    "<!-- lfx-review-agent:finding-status id=r1-f1 status=open resolution=no-response -->",
+    "<!-- lfx-review-agent:finding id=r2-f1 severity=minor dimension=correctness topic=edge-case -->",
+  ].join("\n");
+  const requested = marked("CHANGES_REQUESTED", "a", { body });
+  assert.deepEqual(historyScope("synchronize", "b", [requested]), {
+    mode: "delta",
+    from: "a",
+    to: "b",
+  });
+  assert.equal(historyScope("opened", "b", [requested]).mode, "skip");
+  const commented = marked("COMMENTED", "a", { body });
+  assert.equal(historyScope("opened", "b", [commented]).mode, "full");
+});
