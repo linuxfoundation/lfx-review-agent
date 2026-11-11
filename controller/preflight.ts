@@ -67,18 +67,39 @@ const COOLDOWN_MS = 5 * 60000;
 // HTML-encoded (`&lt;!-- ... --&gt;`); outside code those count as markers.
 export function markerText(body: string | null | undefined) {
   const kept: string[] = [];
-  let fence: string | undefined;
+  let fence: { run: string; depth: number } | undefined;
+  let indented = false;
+  let blank = true;
+  let prevDepth = 0;
   for (const line of (body ?? "").split("\n")) {
-    if (fence) {
-      const close = line.match(/^ {0,3}(`{3,}|~{3,})\s*$/);
-      if (close && close[1][0] === fence[0] && close[1].length >= fence.length) fence = undefined;
+    // Blockquote prefixes are containers: code inside them is still code.
+    const quote = line.match(/^(?: {0,3}> ?)*/)![0];
+    const depth = (quote.match(/>/g) ?? []).length;
+    const inner = line.slice(quote.length);
+    if (fence && depth >= fence.depth) {
+      const close = inner.match(/^ {0,3}(`{3,}|~{3,})\s*$/);
+      if (close && close[1][0] === fence.run[0] && close[1].length >= fence.run.length) fence = undefined;
+      blank = true;
+      prevDepth = depth;
       continue;
     }
-    const open = line.match(/^ {0,3}(`{3,}|~{3,})(.*)$/);
+    // A fence also ends with the blockquote that holds it.
+    fence = undefined;
+    const open = inner.match(/^ {0,3}(`{3,}|~{3,})(.*)$/);
     if (open && !(open[1][0] === "`" && open[2].includes("`"))) {
-      fence = open[1];
+      fence = { run: open[1], depth };
+      indented = false;
       continue;
     }
+    // An indented code block starts a block (after a blank line, a fence or
+    // a change of blockquote level; it can't interrupt a paragraph) and runs
+    // until a non-blank line with less indentation.
+    const isBlank = inner.trim() === "";
+    if (depth !== prevDepth) blank = true;
+    prevDepth = depth;
+    if (!isBlank) indented = /^(?: {4}|\t| {0,3}\t)/.test(inner) && (indented || blank);
+    blank = isBlank;
+    if (indented) continue;
     kept.push(line);
   }
   return kept.join("\n")

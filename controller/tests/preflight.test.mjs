@@ -192,11 +192,23 @@ test("HTML-encoded own markers count as markers; other logins still do not", () 
     "~~~\n<!-- lfx-review-agent:too-large -->\n~~~",
     "````md\n```\n&lt;!-- lfx-review-agent:abandoned review=1 started=x --&gt;\n````",
     "```text\n&lt;!-- lfx-review-agent:too-large --&gt;",
+    "\n    &lt;!-- lfx-review-agent:stalled --&gt;",
+    "\n\t<!-- lfx-review-agent:stalled -->",
+    "> ```\n> &lt;!-- lfx-review-agent:stalled --&gt;\n> ```",
+    ">\n>     &lt;!-- lfx-review-agent:stalled --&gt;",
   ]) {
     assert.equal(eligibility("synchronize", time, prB, [own(summary + quoted)]).action, "cooldown", quoted);
   }
   // A stray backtick does not hide a marker in a later paragraph.
   assert.equal(eligibility("synchronize", time, prB, [own(start + "\nRun `x\n\n" + encode("<!-- lfx-review-agent:summary -->"))]).action, "cooldown");
+  // Indentation that continues a paragraph is not code, and a fence ends with
+  // the blockquote that holds it.
+  for (const body of [
+    start + "\nSee below\n    " + encode("<!-- lfx-review-agent:summary -->"),
+    start + "\n> ```\n> x\n\n" + encode("<!-- lfx-review-agent:summary -->"),
+  ]) {
+    assert.equal(eligibility("synchronize", time, prB, [own(body)]).action, "cooldown", body);
+  }
   assert.equal(
     historyScope("synchronize", "b", [marked("CHANGES_REQUESTED", "a", { body: "`&lt;!-- lfx-review-agent:review --&gt;`" })]).mode,
     "undecided",
