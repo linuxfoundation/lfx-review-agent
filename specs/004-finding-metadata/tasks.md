@@ -166,7 +166,7 @@ the regex check in section 5.
 US3 lands, every open or partial item reads `no-response` or
 `no-thread`.
 
-- [ ] T014 [US2] In `PROMPT.md` Step 4 "Follow-up only", after the
+- [X] T014 [US2] In `PROMPT.md` Step 4 "Follow-up only", after the
   sentence that classifies every prior item, add "Earlier IDs":
   - Read `finding` markers from own inline comments (kept in "Other
     reviewers") and own review bodies from Step 2, with the Operating
@@ -175,7 +175,7 @@ US3 lands, every open or partial item reads `no-response` or
   - Entries carrying the same ID are one finding. An entry with no
     marker (posted before this version) has no ID and gets no status;
     classify it as today.
-- [ ] T015 [US2] In the same place, add the status table from research
+- [X] T015 [US2] In the same place, add the status table from research
   R4: ✅ resolved by a fix → `status=resolved resolution=fixed`; ✅
   resolved because the code or behavior is gone → `resolved`,
   `code-gone`; ✅ "dismissed by a maintainer" → `resolved`,
@@ -184,7 +184,7 @@ US3 lands, every open or partial item reads `no-response` or
   inline comment, otherwise `no-thread` (outside the diff, folded, or
   moved into the body by a 422 retry). "The status always matches the
   revision-tracking line."
-- [ ] T016 [US2] In `PROMPT.md` Step 4, in the docs dedup paragraph
+- [X] T016 [US2] In `PROMPT.md` Step 4, in the docs dedup paragraph
   ("Before raising a new documentation finding, compare it with the
   earlier ones"), add: a matched gap keeps the earlier finding's ID,
   the ID of the latest matched entry that carries a marker. In the
@@ -193,7 +193,7 @@ US3 lands, every open or partial item reads `no-response` or
   superseded_by=<live ID>`, with no `resolution` or `reason`, on every
   later round. An older ID resolved by a dismissal stays `resolved` with
   `maintainer-dismissed`.
-- [ ] T017 [US2] In `PROMPT.md` Step 5c, in the `body` bullet that lists
+- [X] T017 [US2] In `PROMPT.md` Step 5c, in the `body` bullet that lists
   the body's parts, add after `Findings outside the diff`: "on a
   follow-up, the finding status lines". Add a "Finding status lines"
   paragraph after "Folded documentation gaps" with both forms from the
@@ -203,7 +203,7 @@ US3 lands, every open or partial item reads `no-response` or
   `r1-f10`); `reason` only with `declined` or `deferred`; never on the
   first or second line; an initial review, a re-review of the same head,
   a gate A1 revoke and an exclusion revoke write none.
-- [ ] T018 [US2] In the Operating rules check from T013, add: on a
+- [X] T018 [US2] In the Operating rules check from T013, add: on a
   follow-up, each earlier ID has exactly one `finding-status` line, and
   `status`, `resolution` and `reason` values are in their tables.
 

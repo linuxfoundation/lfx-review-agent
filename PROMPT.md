@@ -89,8 +89,10 @@ assist other automated and human reviewers; you do not replace them.
   review posts (new findings, re-posted items and each folded gap), no
   new ID used twice, each inline comment's last line its marker and
   outside any code block, `severity` equal to the finding's tag, and every
-  `dimension` and `topic` value in "Finding topics". Correct any
-  mismatch, then call the tool.
+  `dimension` and `topic` value in "Finding topics". On a follow-up, also
+  check that each earlier ID has exactly one `finding-status` line and
+  that every `status`, `resolution` and `reason` value is in its Step 4
+  table. Correct any mismatch, then call the tool.
 - **Read encoded markers as markers.** Some earlier runs posted markers
   as `&lt;!-- ... --&gt;`. Whenever a step asks whether an own comment or
   own review (`user.login == "{{env.REVIEWER_LOGIN}}"`) contains, carries
@@ -1734,6 +1736,34 @@ Privacy item still blocks approval in Step 5a until it is resolved. A Data
 Privacy item stays `[blocking]` across rounds; it never decays to
 `[minor]`.
 
+**Earlier IDs.** Read the `finding` markers in own inline comments (kept
+in "Other reviewers") and in own review bodies from Step 2, with the
+Operating rules reading rule: Markdown code set aside, encoded markers
+decoded only in own bodies. Make no other read for this. Entries that
+carry the same ID are one finding. An entry with no marker was posted
+before IDs existed: it has no ID and gets no status line; classify it as
+today.
+
+**Finding status.** Record each earlier ID's classification for the
+status lines in Step 5c. The status always matches the revision-tracking
+line:
+
+| Classification | `status` | `resolution` |
+| --- | --- | --- |
+| ✅ resolved by a commit that fixes the code or the docs | `resolved` | `fixed` |
+| ✅ resolved because the code or behavior the finding cited is gone from the PR | `resolved` | `code-gone` |
+| ✅ resolved, "dismissed by a maintainer" | `resolved` | `maintainer-dismissed` |
+| ⚠️ partially addressed | `partial` | see below |
+| ❌ still open | `open` | see below |
+| Replaced by a new documentation finding (the exception below) | `superseded` | none; add `superseded_by` |
+
+Use `code-gone` only when the file, function or lines the finding cited
+are no longer in the PR, so nothing is left to fix; every other ✅ that
+is not a dismissal is `fixed`. For `partial` and `open`, `resolution` is
+`no-response` when the finding has an own inline comment, and
+`no-thread` when it has none: an entry under `Findings outside the diff`,
+a folded gap line, or an inline finding a 422 retry moved into the body.
+
 Earlier documentation findings are own inline comments (kept in "Other
 reviewers") whose title line has `[docs]`, and, in own review bodies from
 Step 2, each `[docs]` entry under `Findings outside the diff` and each
@@ -1783,6 +1813,15 @@ earlier finding still open or partially addressed is superseded and no
 longer counted, so the gap counts once; one resolved by a dismissal stays
 resolved, and the new finding counts. On a whole-PR fallback (rewritten
 history or a merge commit), always treat a match as the earlier finding.
+
+IDs follow the same rule. A matched gap is the earlier finding: it keeps
+that finding's ID, the ID of the latest matched entry that has one, and
+gets no new marker. In the exception, the new finding gets a new ID in
+Step 5b. Among matched entries one ID is live: the new finding's on this
+round, the latest entry's on later rounds. Every older ID in the group
+gets `status=superseded superseded_by=<live ID>`, with no `resolution` or
+`reason`, on this round and every later one. An older ID a dismissal
+resolved stays `resolved` with `maintainer-dismissed`.
 
 The maintainer override applies on every review of a PR that has
 earlier own reviews, not only on a follow-up. A `re-review` of the same
@@ -2212,7 +2251,8 @@ Call `lfx_one_github_pulls_create_review` once, with:
   a short verdict-level note (1–2 sentences; the full recap is the Step 6
   conversation comment, not this review body), then the Documentation
   section when the reminder is due (below), followed by any
-  `Findings outside the diff`. For an approval-withheld review, the second
+  `Findings outside the diff`, then, on a follow-up, the finding status
+  lines (below). For an approval-withheld review, the second
   line is `<!-- lfx-review-agent:approval-withheld -->`, then each of the
   5a.1, 5a.2 and 5a.3 notes that applies. Step 2 of later runs reads that
   marker to
@@ -2261,6 +2301,27 @@ outside the code spans. The item's title line has no marker.
 
 Each line counts as one `[minor]`, and a follow-up classifies each line
 on its own.
+
+**Finding status lines.** On a follow-up, the body ends with one line per
+earlier ID from Step 4 ("Earlier IDs" and "Finding status"), in one of
+these forms:
+
+```text
+<!-- lfx-review-agent:finding-status id=<id> status=<status> resolution=<resolution> reason=<reason> -->
+<!-- lfx-review-agent:finding-status id=<id> status=superseded superseded_by=<id> -->
+```
+
+- Write a line for every earlier ID on every follow-up, IDs already
+  resolved or superseded included, and one line per ID even when it is on
+  several entries.
+- Order the lines by `N`, then `k`, as numbers: `r1-f2` before `r1-f10`.
+- Leave `reason` out unless the resolution is `declined` or `deferred`.
+- Write each line literally, on its own line, after everything else in
+  the body, never on the first or second line. A `head_moved` `COMMENT`
+  review keeps them.
+- An initial review, a `re-review` of the same head included, writes
+  none. A gate A1 revoke and an exclusion revoke classify nothing and
+  write none.
 
 This single call publishes the verdict and every inline comment together;
 never create a pending review and submit it later. If the call fails with
