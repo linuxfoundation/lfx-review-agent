@@ -181,15 +181,22 @@ test("HTML-encoded own markers count as markers; other logins still do not", () 
     eligibility("synchronize", time, prB, [own(start + encode("\n<!-- lfx-review-agent:summary -->"))]).action,
     "cooldown",
   );
-  // Echoed PR text in code spans and fenced blocks stays encoded.
+  // Markdown code is never a marker, literal or encoded, in any code form.
   const summary = start + "\n<!-- lfx-review-agent:summary -->\n";
-  for (const echoed of [
+  for (const quoted of [
     "Changed: `&lt;!-- lfx-review-agent:stalled --&gt;`",
+    "Quoted: `<!-- lfx-review-agent:stalled -->`",
+    "Quoted: `` a`b <!-- lfx-review-agent:stalled --> ``",
+    "Quoted: `first line\n&lt;!-- lfx-review-agent:stalled --&gt;`",
     "```text\n&lt;!-- lfx-review-agent:skip comment=1 --&gt;\n```",
+    "~~~\n<!-- lfx-review-agent:too-large -->\n~~~",
+    "````md\n```\n&lt;!-- lfx-review-agent:abandoned review=1 started=x --&gt;\n````",
     "```text\n&lt;!-- lfx-review-agent:too-large --&gt;",
   ]) {
-    assert.equal(eligibility("synchronize", time, prB, [own(summary + echoed)]).action, "cooldown", echoed);
+    assert.equal(eligibility("synchronize", time, prB, [own(summary + quoted)]).action, "cooldown", quoted);
   }
+  // A stray backtick does not hide a marker in a later paragraph.
+  assert.equal(eligibility("synchronize", time, prB, [own(start + "\nRun `x\n\n" + encode("<!-- lfx-review-agent:summary -->"))]).action, "cooldown");
   assert.equal(
     historyScope("synchronize", "b", [marked("CHANGES_REQUESTED", "a", { body: "`&lt;!-- lfx-review-agent:review --&gt;`" })]).mode,
     "undecided",

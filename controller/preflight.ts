@@ -60,13 +60,32 @@ const MAX_REVIEWS = 10;
 const STALE_START_MS = 45 * 60000;
 const COOLDOWN_MS = 5 * 60000;
 
-// Some runs posted markers HTML-encoded (`&lt;!-- ... --&gt;`). PROMPT.md
-// ("Read encoded markers as markers") counts them as markers; so does this.
-// Code spans and fenced blocks stay encoded: echoed PR text lives there, and
-// before 0.1.26 the sanitizing rule kept `&`, so it can hold encoded markers.
+// Text used for marker matching (PROMPT.md "Read encoded markers as markers").
+// Markdown code is removed first: this agent never writes a marker in code,
+// while echoed or quoted text always sits there and may hold a literal or,
+// from before 0.1.26, an encoded marker. Some runs posted markers
+// HTML-encoded (`&lt;!-- ... --&gt;`); outside code those count as markers.
 export function markerText(body: string | null | undefined) {
-  return (body ?? "").replace(/(```[\s\S]*?(?:```|$)|`[^`\n]*`)|&lt;|&gt;/g,
-    (match, code: string | undefined) => code ?? (match === "&lt;" ? "<" : ">"));
+  const kept: string[] = [];
+  let fence: string | undefined;
+  for (const line of (body ?? "").split("\n")) {
+    if (fence) {
+      const close = line.match(/^ {0,3}(`{3,}|~{3,})\s*$/);
+      if (close && close[1][0] === fence[0] && close[1].length >= fence.length) fence = undefined;
+      continue;
+    }
+    const open = line.match(/^ {0,3}(`{3,}|~{3,})(.*)$/);
+    if (open && !(open[1][0] === "`" && open[2].includes("`"))) {
+      fence = open[1];
+      continue;
+    }
+    kept.push(line);
+  }
+  return kept.join("\n")
+    // An inline span closes with a backtick run of the same length, within
+    // one paragraph, so a stray backtick can't hide markers further down.
+    .replace(/(?<!`)(`+)(?!`)(?:(?!\n[ \t]*\n)[\s\S])*?(?<!`)\1(?!`)/g, " ")
+    .replaceAll("&lt;", "<").replaceAll("&gt;", ">");
 }
 
 // Decodes only this agent's own bodies; other accounts' text stays as written.
