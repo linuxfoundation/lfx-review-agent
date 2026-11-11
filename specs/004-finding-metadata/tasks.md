@@ -116,7 +116,7 @@ lines are longer than 80 columns and must not wrap (research R7).
 **Independent Test**: quickstart section 4, scenarios 1, 2 and 8, and
 the regex check in section 5.
 
-- [ ] T008 [US1] In `PROMPT.md` Step 5b, add the marker as the last line
+- [X] T008 [US1] In `PROMPT.md` Step 5b, add the marker as the last line
   of the inline comment body template, after the `Fix:` line, in the
   `finding` form from the contract ("finding" section). Below the
   template, add bullets: the first line stays the severity
@@ -124,29 +124,29 @@ the regex check in section 5.
   one space between and a space before `-->`; `severity` is the label
   the finding is posted with; `dimension` and `topic` come from "Finding
   topics"; no value comes from PR content.
-- [ ] T009 [US1] In `PROMPT.md` Step 5b, in the bullet "A finding whose
+- [X] T009 [US1] In `PROMPT.md` Step 5b, in the bullet "A finding whose
   location is not in the PR diff ... using the same template with
   `path:line` in the title", add that its `finding` marker goes on the
   line after its Fix line.
-- [ ] T010 [US1] In `PROMPT.md` Step 5c "Folded documentation gaps",
+- [X] T010 [US1] In `PROMPT.md` Step 5c "Folded documentation gaps",
   change the example so each gap line ends with its own marker, with
   `severity=minor dimension=documentation topic=docs-missing` and IDs
   `r1-f4` and `r1-f5` (as in the contract). Add: "The item's title line
   has no marker."
-- [ ] T011 [US1] In `PROMPT.md` Step 5c, change the 422 retry sentence
+- [X] T011 [US1] In `PROMPT.md` Step 5c, change the 422 retry sentence
   "each with its title line, `[docs]` tag included" to also say "and its
   `finding` marker, unchanged, on the line after its Fix line". In
   "Server errors" item 3 ("Resend the payload of the call that
   failed"), add "with the same finding IDs". In the `head_moved` bullets,
   add that the `COMMENT` review keeps every marker.
-- [ ] T012 [US1] In `PROMPT.md` Operating rules, edit PR #44's "Check
+- [X] T012 [US1] In `PROMPT.md` Operating rules, edit PR #44's "Check
   your markers before every post" bullet. Its sentence "Text that
   discusses markers, such as a quoted example in a finding, stays as
   written, in a code span" gains: "except that a quoted
   `lfx-review-agent:` marker loses its `<!--` and `-->`, even in a code
   span, because the metrics collector does not skip code" (spec FR-033,
   research R8).
-- [ ] T013 [US1] In the same Operating rules bullet, add a check for
+- [X] T013 [US1] In the same Operating rules bullet, add a check for
   `lfx_one_github_pulls_create_review`: one `finding` marker per new
   finding, folded gaps included; each inline comment's last line is its
   marker; every `severity`, `dimension` and `topic` value is in its
