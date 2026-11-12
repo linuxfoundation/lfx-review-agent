@@ -65,13 +65,16 @@ const COOLDOWN_MS = 5 * 60000;
 // while echoed or quoted text always sits there and may hold a literal or,
 // from before 0.1.26, an encoded marker. Some runs posted markers
 // HTML-encoded (`&lt;!-- ... --&gt;`); outside code those count as markers.
-export function markerText(body: string | null | undefined) {
-  const kept: string[] = [];
+// For each line of `body`, whether it is Markdown block code: a fenced
+// block (fences included) or an indented code block. Inline spans are
+// handled by INLINE_SPAN below.
+function codeLines(body: string): boolean[] {
+  const code: boolean[] = [];
   let fence: { run: string; depth: number } | undefined;
   let indented = false;
   let blank = true;
   let prevDepth = 0;
-  for (const line of (body ?? "").split("\n")) {
+  for (const line of body.split("\n")) {
     if (fence) {
       // Inside a fence, only the blockquote levels that hold it are
       // containers; any further `>` is code content, so it can't close it.
@@ -81,6 +84,7 @@ export function markerText(body: string | null | undefined) {
         prevDepth = fence.depth;
         if (close && close[1][0] === fence.run[0] && close[1].length >= fence.run.length) fence = undefined;
         blank = true;
+        code.push(true);
         continue;
       }
       // A fence also ends with the blockquote that holds it.
@@ -94,6 +98,7 @@ export function markerText(body: string | null | undefined) {
     if (open && !(open[1][0] === "`" && open[2].includes("`"))) {
       fence = { run: open[1], depth };
       indented = false;
+      code.push(true);
       continue;
     }
     // An indented code block starts a block (after a blank line, a fence or
@@ -104,14 +109,57 @@ export function markerText(body: string | null | undefined) {
     prevDepth = depth;
     if (!isBlank) indented = /^(?: {4}|\t| {0,3}\t)/.test(inner) && (indented || blank);
     blank = isBlank;
-    if (indented) continue;
-    kept.push(line);
+    code.push(indented);
   }
-  return kept.join("\n")
-    // An inline span closes with a backtick run of the same length, within
-    // one paragraph, so a stray backtick can't hide markers further down.
-    .replace(/(?<!`)(`+)(?!`)(?:(?!\n[ \t]*\n)[\s\S])*?(?<!`)\1(?!`)/g, " ")
+  return code;
+}
+// An inline span closes with a backtick run of the same length, within one
+// paragraph, so a stray backtick can't hide markers further down.
+const INLINE_SPAN = String.raw`(?<!\`)(\`+)(?!\`)(?:(?!\n[ \t]*\n)[\s\S])*?(?<!\`)\1(?!\`)`;
+export function markerText(body: string | null | undefined) {
+  const lines = (body ?? "").split("\n");
+  const code = codeLines(body ?? "");
+  return lines.filter((_, i) => !code[i]).join("\n")
+    .replace(new RegExp(INLINE_SPAN, "g"), " ")
     .replaceAll("&lt;", "<").replaceAll("&gt;", ">");
+}
+// `body` with every HTML-escaped agent marker outside Markdown code written
+// literally, or null when there is none. Escaped text in code is quoted
+// content and stays as it is; only the marker's own `&lt;!--` and `--&gt;`
+// change.
+export function literalMarkers(body: string | null | undefined): string | null {
+  if (!body?.includes("&lt;!--")) return null;
+  const lines = body.split("\n");
+  const code = codeLines(body);
+  const pattern = new RegExp(`${INLINE_SPAN}|&lt;!--(\\s*lfx-review-agent:[a-z-]+\\b[^\\n]*?\\s*)--&gt;`, "g");
+  const out: string[] = [];
+  let run: string[] = [];
+  const flush = () => {
+    if (!run.length) return;
+    out.push(run.join("\n").replace(pattern, (match, ticks, inner) => ticks ? match : `<!--${inner}-->`));
+    run = [];
+  };
+  lines.forEach((line, i) => {
+    if (code[i]) {
+      flush();
+      out.push(line);
+    } else run.push(line);
+  });
+  flush();
+  const fixed = out.join("\n");
+  return fixed === body ? null : fixed;
+}
+// Own reviews this run created (absent from the list read before the
+// reviewer ran) whose body carries an escaped marker, with the literal body.
+// Earlier reviews are never touched.
+export function escapedNewReviews(
+  after: Review[], beforeIds: Set<number>, reviewerLogin = login,
+): { id: number; body: string }[] {
+  return after.flatMap((r) => {
+    if (r.user?.login !== reviewerLogin || beforeIds.has(r.id)) return [];
+    const body = literalMarkers(r.body);
+    return body ? [{ id: r.id, body }] : [];
+  });
 }
 
 // Decodes only this agent's own bodies; other accounts' text stays as written.

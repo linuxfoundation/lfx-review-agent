@@ -8,6 +8,27 @@ If a GitHub read fails or returns an unexpected shape, the controller fails
 open: it passes the original input to the reviewer, which applies every gate
 itself, and reports `Fallback: controller read failed (...)`.
 
+## Escaped marker repair
+
+The reviewer sometimes posts its formal review with HTML-escaped markers
+(`&lt;!-- lfx-review-agent:review --&gt;`). They show as text on GitHub,
+and metrics readers miss them; later runs still read them. After the
+reviewer returns, the controller lists the PR's reviews again. For each
+own review that was not in the list it read before calling the reviewer,
+it rewrites escaped `lfx-review-agent:` markers outside Markdown code to
+the literal form and updates the review with `pulls_update_review`
+(integration 1.0.8). Escaped text in code is quoted content and stays.
+
+- Only reviews this run created are changed. Earlier reviews, other
+  accounts' reviews and inline comments are never touched.
+- A failed list or update is reported in the result and never fails the
+  run; the review is already posted.
+- Runs the controller does not prepare are not repaired: the hourly sweep
+  calls the Native reviewer directly, and a controller read failure falls
+  back to the reviewer without a review list.
+- Updating a review sends a `pull_request_review` `edited` webhook. No
+  trigger subscribes to it, so the repair starts no run.
+
 ## Test before replacing triggers
 
 Check out the repository in a separate directory. Register two private test
@@ -46,7 +67,8 @@ handling before cutover.
    override exists. Also authorize the controller UUID on that credential:
    create an ALLOW policy scoped to the pilot workspace and controller, for
    `pulls_get`, `pulls_list_reviews`, `issues_list_comments`,
-   `issues_add_labels`, `issues_create_comment`, `issues_update_comment`.
+   `issues_add_labels`, `issues_create_comment`, `issues_update_comment`,
+   `pulls_update_review`.
    Keep the Native policy and default-deny for unmatched operations. See the
    root README's Credential policy commands. Verify access before cutover.
 3. Deactivate all active originals: `guild trigger deactivate "$OLD_ID"`.

@@ -5,6 +5,8 @@ import test from "node:test";
 import {
   commentClass,
   eligibility,
+  escapedNewReviews,
+  literalMarkers,
   eventDetails,
   historyScope,
   login,
@@ -287,4 +289,52 @@ test("finding markers do not change own-review classification", () => {
   assert.equal(historyScope("synchronize", "b", [unmarked]).mode, "undecided");
   // Finding lines in a conversation comment are not a session or notice.
   assert.equal(commentClass({ user: { login }, body: findingLines.join("\n") }), "other");
+});
+
+test("escaped agent markers outside code are written literally", () => {
+  const esc = (m) => `&lt;!-- lfx-review-agent:${m} --&gt;`;
+  const lit = (m) => `<!-- lfx-review-agent:${m} -->`;
+  // Every marker escaped, as on a fully escaped follow-up.
+  const full = [
+    `${esc("review")} ${esc("review-of review=3")}`,
+    "Two earlier findings are fixed.",
+    "",
+    esc("finding-status id=r1-f1 status=resolved resolution=fixed"),
+    esc("finding-status id=r1-f2 status=open resolution=no-thread"),
+  ].join("\n");
+  assert.equal(literalMarkers(full), [
+    `${lit("review")} ${lit("review-of review=3")}`,
+    "Two earlier findings are fixed.",
+    "",
+    lit("finding-status id=r1-f1 status=resolved resolution=fixed"),
+    lit("finding-status id=r1-f2 status=open resolution=no-thread"),
+  ].join("\n"));
+  // Only the first line escaped; later literal markers are untouched.
+  const firstLine = `${esc("review")} ${esc("review-of review=1")}\nNote.\n\n**Documentation**\n${lit("docs-reminder")}`;
+  assert.equal(literalMarkers(firstLine), `${lit("review")} ${lit("review-of review=1")}\nNote.\n\n**Documentation**\n${lit("docs-reminder")}`);
+  // Quoted in an inline code span or a fenced block: quoted content, kept.
+  const quoted = `${lit("review")}\nThe diff adds \`${esc("finding id=r9-f9")}\` to a template.\n\n\`\`\`html\n${esc("review")}\n\`\`\``;
+  assert.equal(literalMarkers(quoted), null);
+  // A code span next to an escaped marker: only the marker changes.
+  assert.equal(
+    literalMarkers(`${esc("review")} uses \`&lt;!-- x --&gt;\``),
+    `${lit("review")} uses \`&lt;!-- x --&gt;\``,
+  );
+  // Other escaped HTML and already-literal bodies are left alone.
+  assert.equal(literalMarkers(`${lit("review")}\nRenders &lt;div&gt; and &lt;!-- a note --&gt;.`), null);
+  assert.equal(literalMarkers(lit("review")), null);
+  assert.equal(literalMarkers(null), null);
+});
+
+test("only own reviews this run created are repaired", () => {
+  const esc = "&lt;!-- lfx-review-agent:review --&gt;";
+  const reviews = [
+    { id: 1, state: "COMMENTED", body: esc, user: { login } },            // earlier run
+    { id: 2, state: "COMMENTED", body: esc, user: { login: "someone" } },  // not ours
+    { id: 3, state: "APPROVED", body: "<!-- lfx-review-agent:review -->", user: { login } }, // literal
+    { id: 4, state: "CHANGES_REQUESTED", body: esc, user: { login } },     // this run
+  ];
+  assert.deepEqual(escapedNewReviews(reviews, new Set([1, 2])), [
+    { id: 4, body: "<!-- lfx-review-agent:review -->" },
+  ]);
 });
