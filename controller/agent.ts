@@ -12,6 +12,7 @@ import {
   eventDetails,
   historyScope,
   readEvent,
+  reportedReviewIds,
 } from "./preflight.js";
 
 import { prMetadata, reviewMetadata, commentMetadata } from "./metadata.js";
@@ -63,14 +64,18 @@ const tools = {
 
 // The reviewer sometimes posts its review with HTML-escaped markers
 // (`&lt;!-- ... --&gt;`), which show as text and that metrics readers miss.
-// Rewrite them literally, only in own reviews this run created. Never fails
-// the run: the review is already posted.
+// Rewrite them literally, only in own reviews this run posted: the ones its
+// report links that were not on the PR before it ran. Never fails the run:
+// the review is already posted.
 async function repairEscapedMarkers(
   task: Task<typeof tools>,
   params: { owner: string; repo: string; pull_number: number },
-  beforeIds: Set<number>,
+  beforeIds: number[],
+  report: string,
   login: string,
 ) {
+  const posted = reportedReviewIds(report, params.owner, params.repo, params.pull_number);
+  if (!posted.length) return "";
   try {
     const after: z.infer<typeof reviewMetadata>[] = [];
     let page = 1;
@@ -80,7 +85,7 @@ async function repairEscapedMarkers(
       if (batch.length < 100) break;
       page += 1;
     }
-    const repairs = escapedNewReviews(after, beforeIds, login);
+    const repairs = escapedNewReviews(after, beforeIds, posted, login);
     for (const { id, body } of repairs)
       await task.tools.lfx_one_github_pulls_update_review({ ...params, review_id: id, body });
     return repairs.length ? `Escaped markers rewritten in review ${repairs.map(r => r.id).join(", ")}.` : "";
@@ -255,7 +260,7 @@ async function run(
   const result = await task.tools.reviewer({
     text: JSON.stringify({ event, prepared }),
   });
-  const repair = await repairEscapedMarkers(task, params, new Set(reviews.map((r) => r.id)), login);
+  const repair = await repairEscapedMarkers(task, params, reviews.map((r) => r.id), result.text, login);
   return repair ? { ...result, text: `${result.text} ${repair}` } : result;
 }
 

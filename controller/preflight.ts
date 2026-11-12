@@ -94,7 +94,9 @@ function codeLines(body: string): boolean[] {
     const quote = line.match(/^(?: {0,3}> ?)*/)![0];
     const depth = (quote.match(/>/g) ?? []).length;
     const inner = line.slice(quote.length);
-    const open = inner.match(/^ {0,3}(`{3,}|~{3,})(.*)$/);
+    // A fence can open a list item (`- ~~~html`); its closing fence is
+    // indented to the item's content, within the 0-3 spaces allowed.
+    const open = inner.match(/^ {0,3}(?:(?:[-*+]|\d{1,9}[.)])[ \t]+)?(`{3,}|~{3,})(.*)$/);
     if (open && !(open[1][0] === "`" && open[2].includes("`"))) {
       fence = { run: open[1], depth };
       indented = false;
@@ -149,14 +151,23 @@ export function literalMarkers(body: string | null | undefined): string | null {
   const fixed = out.join("\n");
   return fixed === body ? null : fixed;
 }
-// Own reviews this run created (absent from the list read before the
-// reviewer ran) whose body carries an escaped marker, with the literal body.
-// Earlier reviews are never touched.
+// Review IDs the reviewer's Step 7 report links for this pull request
+// (`.../pull/<n>#pullrequestreview-<id>`): the reviews this run posted.
+// Plain arrays, not Sets: the controller's state is saved as JSON between
+// tool calls.
+export function reportedReviewIds(text: string, owner: string, repo: string, number: number): number[] {
+  const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const url = new RegExp(`github\\.com/${esc(owner)}/${esc(repo)}/pull/${number}#pullrequestreview-(\\d+)`, "gi");
+  return [...new Set([...text.matchAll(url)].map((m) => Number(m[1])))];
+}
+// Own reviews this run posted (linked in its report and absent from the
+// list read before the reviewer ran) whose body carries an escaped marker,
+// with the literal body. Every other review is left alone.
 export function escapedNewReviews(
-  after: Review[], beforeIds: Set<number>, reviewerLogin = login,
+  after: Review[], beforeIds: number[], postedIds: number[], reviewerLogin = login,
 ): { id: number; body: string }[] {
   return after.flatMap((r) => {
-    if (r.user?.login !== reviewerLogin || beforeIds.has(r.id)) return [];
+    if (r.user?.login !== reviewerLogin || beforeIds.includes(r.id) || !postedIds.includes(r.id)) return [];
     const body = literalMarkers(r.body);
     return body ? [{ id: r.id, body }] : [];
   });

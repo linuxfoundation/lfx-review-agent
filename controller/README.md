@@ -13,14 +13,19 @@ itself, and reports `Fallback: controller read failed (...)`.
 The reviewer sometimes posts its formal review with HTML-escaped markers
 (`&lt;!-- lfx-review-agent:review --&gt;`). They show as text on GitHub,
 and metrics readers miss them; later runs still read them. After the
-reviewer returns, the controller lists the PR's reviews again. For each
-own review that was not in the list it read before calling the reviewer,
-it rewrites escaped `lfx-review-agent:` markers outside Markdown code to
-the literal form and updates the review with `pulls_update_review`
-(integration 1.0.8). Escaped text in code is quoted content and stays.
+reviewer returns, the controller takes the review links in its Step 7
+report (`.../pull/<n>#pullrequestreview-<id>`), lists the PR's reviews
+again, and repairs each own review that the report links and that was not
+in the list read before the reviewer ran. It rewrites escaped
+`lfx-review-agent:` markers outside Markdown code to the literal form and
+updates the review with `pulls_update_review` (integration 1.0.8). Escaped
+text in code, fenced blocks in list items included, is quoted content and
+stays.
 
-- Only reviews this run created are changed. Earlier reviews, other
-  accounts' reviews and inline comments are never touched.
+- Only reviews this run posted are changed. Earlier reviews, reviews
+  another run posted meanwhile, other accounts' reviews and inline
+  comments are never touched. A report that links no review makes no
+  extra read.
 - A failed list or update is reported in the result and never fails the
   run; the review is already posted.
 - Runs the controller does not prepare are not repaired: the hourly sweep

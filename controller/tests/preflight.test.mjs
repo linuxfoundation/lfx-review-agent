@@ -7,6 +7,7 @@ import {
   eligibility,
   escapedNewReviews,
   literalMarkers,
+  reportedReviewIds,
   eventDetails,
   historyScope,
   login,
@@ -326,15 +327,45 @@ test("escaped agent markers outside code are written literally", () => {
   assert.equal(literalMarkers(null), null);
 });
 
-test("only own reviews this run created are repaired", () => {
+test("only own reviews this run posted are repaired", () => {
   const esc = "&lt;!-- lfx-review-agent:review --&gt;";
   const reviews = [
     { id: 1, state: "COMMENTED", body: esc, user: { login } },            // earlier run
     { id: 2, state: "COMMENTED", body: esc, user: { login: "someone" } },  // not ours
     { id: 3, state: "APPROVED", body: "<!-- lfx-review-agent:review -->", user: { login } }, // literal
     { id: 4, state: "CHANGES_REQUESTED", body: esc, user: { login } },     // this run
+    { id: 5, state: "COMMENTED", body: esc, user: { login } },             // another run, same window
   ];
-  assert.deepEqual(escapedNewReviews(reviews, new Set([1, 2])), [
+  assert.deepEqual(escapedNewReviews(reviews, [1, 2], [1, 3, 4]), [
     { id: 4, body: "<!-- lfx-review-agent:review -->" },
   ]);
+});
+
+test("the reviewer's report names the reviews it posted on this pull request", () => {
+  const report = [
+    "Review posted: REQUEST_CHANGES",
+    "- Summary comment: https://github.com/linuxfoundation/lfx-test/pull/15#issuecomment-9",
+    "- Formal review (with inline comments): https://github.com/linuxfoundation/lfx-test/pull/15#pullrequestreview-77",
+    "Earlier: https://github.com/linuxfoundation/lfx-test/pull/16#pullrequestreview-88",
+    "Other repo: https://github.com/linuxfoundation/lfx-testx/pull/15#pullrequestreview-99",
+  ].join("\n");
+  assert.deepEqual(reportedReviewIds(report, "linuxfoundation", "lfx-test", 15), [77]);
+  assert.deepEqual(reportedReviewIds("Review not started: excluded", "linuxfoundation", "lfx-test", 15), []);
+});
+
+test("fences that open a list item are code", () => {
+  const esc = (m) => `&lt;!-- lfx-review-agent:${m} --&gt;`;
+  const body = [
+    esc("review"),
+    "- Quoted from the diff:",
+    "- ~~~html",
+    `  ${esc("finding id=r9-f9 severity=nit dimension=correctness topic=other")}`,
+    "  ~~~",
+    "",
+    esc("docs-reminder"),
+  ].join("\n");
+  const fixed = literalMarkers(body).split("\n");
+  assert.equal(fixed[0], "<!-- lfx-review-agent:review -->");
+  assert.equal(fixed[3], `  ${esc("finding id=r9-f9 severity=nit dimension=correctness topic=other")}`);
+  assert.equal(fixed[6], "<!-- lfx-review-agent:docs-reminder -->");
 });
