@@ -282,14 +282,14 @@ FR-028, research R5).
   template must match `_SEVERITY_RE`.
 - [X] T029 Run the pre-PR review this repository's `CLAUDE.md` names (or
   `review-my-changes` if none), and fix accepted findings in one commit.
-- [ ] T030 Push with `git push --no-verify github feature/finding-metadata`
+- [X] T030 Push with `git push --no-verify github feature/finding-metadata`
   and open the PR with `env -u GH_TOKEN -u GITHUB_TOKEN gh pr create`,
   label `ai-assisted`, base `main` (or `fix/marker-escaping` while PR
   #44 is open, retargeted after it merges).
 - [ ] T031 (maintainer) Coordinate engineering-metrics (research R11):
   `finding` and `finding-status` in `KNOWN_MARKER_KINDS`, `finding` read
   from inline comments, latest status per ID, Markdown code skipped.
-- [ ] T032 (maintainer) After merge and after PR #44 is published:
+- [X] T032 (maintainer) After merge and after PR #44 is published:
   publish the reviewer, then the controller, with the commands in
   quickstart section 3.
 - [ ] T033 (maintainer) Run quickstart section 4 scenarios 1 to 8 and
