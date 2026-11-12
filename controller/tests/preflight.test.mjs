@@ -7,6 +7,7 @@ import {
   eligibility,
   escapedNewReviews,
   literalMarkers,
+  markerText,
   reportedReviewIds,
   eventDetails,
   historyScope,
@@ -368,4 +369,26 @@ test("fences that open a list item are code", () => {
   assert.equal(fixed[0], "<!-- lfx-review-agent:review -->");
   assert.equal(fixed[3], `  ${esc("finding id=r9-f9 severity=nit dimension=correctness topic=other")}`);
   assert.equal(fixed[6], "<!-- lfx-review-agent:docs-reminder -->");
+});
+
+test("a fence in a wide list item closes, so later markers are still found", () => {
+  const esc = (m) => `&lt;!-- lfx-review-agent:${m} --&gt;`;
+  const quoted = esc("finding id=r9-f9 severity=nit dimension=correctness topic=other");
+  const status = "finding-status id=r1-f1 status=resolved resolution=fixed";
+  const body = [
+    esc("review"),
+    "10. ~~~html",
+    `    ${quoted}`,
+    "    ~~~",
+    "",
+    esc(status),
+  ].join("\n");
+  const fixed = literalMarkers(body).split("\n");
+  assert.equal(fixed[0], "<!-- lfx-review-agent:review -->");
+  assert.equal(fixed[2], `    ${quoted}`);
+  assert.equal(fixed[5], `<!-- lfx-review-agent:${status} -->`);
+  // The reader sets the fenced example aside and still sees the marker after it.
+  const read = markerText(body);
+  assert.ok(read.includes(`<!-- lfx-review-agent:${status} -->`));
+  assert.ok(!read.includes("r9-f9"));
 });

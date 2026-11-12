@@ -70,7 +70,7 @@ const COOLDOWN_MS = 5 * 60000;
 // handled by INLINE_SPAN below.
 function codeLines(body: string): boolean[] {
   const code: boolean[] = [];
-  let fence: { run: string; depth: number } | undefined;
+  let fence: { run: string; depth: number; item: number } | undefined;
   let indented = false;
   let blank = true;
   let prevDepth = 0;
@@ -80,7 +80,9 @@ function codeLines(body: string): boolean[] {
       // containers; any further `>` is code content, so it can't close it.
       const held = line.match(new RegExp(`^(?: {0,3}> ?){${fence.depth}}`));
       if (held) {
-        const close = line.slice(held[0].length).match(/^ {0,3}(`{3,}|~{3,})\s*$/);
+        // In a list item the closing fence may also carry the item's content
+        // indent (4 spaces for `10. `), on top of the usual 0-3.
+        const close = line.slice(held[0].length).match(new RegExp(`^ {0,${fence.item + 3}}(\`{3,}|~{3,})\\s*$`));
         prevDepth = fence.depth;
         if (close && close[1][0] === fence.run[0] && close[1].length >= fence.run.length) fence = undefined;
         blank = true;
@@ -94,11 +96,12 @@ function codeLines(body: string): boolean[] {
     const quote = line.match(/^(?: {0,3}> ?)*/)![0];
     const depth = (quote.match(/>/g) ?? []).length;
     const inner = line.slice(quote.length);
-    // A fence can open a list item (`- ~~~html`); its closing fence is
-    // indented to the item's content, within the 0-3 spaces allowed.
-    const open = inner.match(/^ {0,3}(?:(?:[-*+]|\d{1,9}[.)])[ \t]+)?(`{3,}|~{3,})(.*)$/);
-    if (open && !(open[1][0] === "`" && open[2].includes("`"))) {
-      fence = { run: open[1], depth };
+    // A fence can open a list item (`- ~~~html`, `10. ~~~html`); `item` is
+    // that item's content indent, the width of everything before the fence.
+    const open = inner.match(/^( {0,3}(?:(?:[-*+]|\d{1,9}[.)])[ \t]+)?)(`{3,}|~{3,})(.*)$/);
+    if (open && !(open[2][0] === "`" && open[3].includes("`"))) {
+      const item = /[-*+.)]/.test(open[1]) ? open[1].length : 0;
+      fence = { run: open[2], depth, item };
       indented = false;
       code.push(true);
       continue;
