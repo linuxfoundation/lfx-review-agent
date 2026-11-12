@@ -392,3 +392,45 @@ test("a fence in a wide list item closes, so later markers are still found", () 
   assert.ok(read.includes(`<!-- lfx-review-agent:${status} -->`));
   assert.ok(!read.includes("r9-f9"));
 });
+
+test("an unclosed fence in a list item ends with the item", () => {
+  const esc = (m) => `&lt;!-- lfx-review-agent:${m} --&gt;`;
+  const status = "finding-status id=r1-f2 status=open resolution=no-thread";
+  const body = [
+    esc("review"),
+    "- Quoted from the diff:",
+    "- ~~~html",
+    `  ${esc("finding id=r9-f9 severity=nit dimension=correctness topic=other")}`,
+    "",
+    "The snippet above was never closed.",
+    esc(status),
+  ].join("\n");
+  const fixed = literalMarkers(body).split("\n");
+  assert.equal(fixed[3], `  ${esc("finding id=r9-f9 severity=nit dimension=correctness topic=other")}`);
+  assert.equal(fixed[6], `<!-- lfx-review-agent:${status} -->`);
+  const read = markerText(body);
+  assert.ok(read.includes(`<!-- lfx-review-agent:${status} -->`));
+  assert.ok(!read.includes("r9-f9"));
+});
+
+test("a fence on a list item's later line is code", () => {
+  const esc = (m) => `&lt;!-- lfx-review-agent:${m} --&gt;`;
+  const quoted = esc("finding id=r9-f9 severity=nit dimension=correctness topic=other");
+  const status = "finding-status id=r1-f1 status=resolved resolution=fixed";
+  const body = [
+    esc("review"),
+    "10. Quoted from the diff:",
+    "    ~~~html",
+    `    ${quoted}`,
+    "    ~~~",
+    "",
+    esc(status),
+  ].join("\n");
+  const fixed = literalMarkers(body).split("\n");
+  assert.equal(fixed[0], "<!-- lfx-review-agent:review -->");
+  assert.equal(fixed[3], `    ${quoted}`);
+  assert.equal(fixed[6], `<!-- lfx-review-agent:${status} -->`);
+  const read = markerText(body);
+  assert.ok(read.includes(`<!-- lfx-review-agent:${status} -->`));
+  assert.ok(!read.includes("r9-f9"));
+});
