@@ -65,35 +65,58 @@ const COOLDOWN_MS = 5 * 60000;
 // while echoed or quoted text always sits there and may hold a literal or,
 // from before 0.1.26, an encoded marker. Some runs posted markers
 // HTML-encoded (`&lt;!-- ... --&gt;`); outside code those count as markers.
-export function markerText(body: string | null | undefined) {
-  const kept: string[] = [];
-  let fence: { run: string; depth: number } | undefined;
+// For each line of `body`, whether it is Markdown block code: a fenced
+// block (fences included) or an indented code block. Inline spans are
+// handled by INLINE_SPAN below.
+function codeLines(body: string): boolean[] {
+  const code: boolean[] = [];
+  let fence: { run: string; depth: number; item: number } | undefined;
+  // Content indent of the list item the current line belongs to, 0 outside
+  // one: the width of its marker line's prefix (4 for `10. `).
+  let item = 0;
   let indented = false;
   let blank = true;
   let prevDepth = 0;
-  for (const line of (body ?? "").split("\n")) {
+  for (const line of body.split("\n")) {
     if (fence) {
       // Inside a fence, only the blockquote levels that hold it are
       // containers; any further `>` is code content, so it can't close it.
       const held = line.match(new RegExp(`^(?: {0,3}> ?){${fence.depth}}`));
       if (held) {
-        const close = line.slice(held[0].length).match(/^ {0,3}(`{3,}|~{3,})\s*$/);
-        prevDepth = fence.depth;
-        if (close && close[1][0] === fence.run[0] && close[1].length >= fence.run.length) fence = undefined;
-        blank = true;
-        continue;
+        // In a list item the closing fence may also carry the item's content
+        // indent (4 spaces for `10. `), on top of the usual 0-3.
+        const rest = line.slice(held[0].length);
+        const close = rest.match(new RegExp(`^ {0,${fence.item + 3}}(\`{3,}|~{3,})\\s*$`));
+        // A list item's fence also ends where the item ends: at a non-blank
+        // line indented less than the item's content. That line is read
+        // normally below.
+        if (close || !fence.item || rest.trim() === "" || rest.match(/^ */)![0].length >= fence.item) {
+          prevDepth = fence.depth;
+          if (close && close[1][0] === fence.run[0] && close[1].length >= fence.run.length) fence = undefined;
+          blank = true;
+          code.push(true);
+          continue;
+        }
       }
-      // A fence also ends with the blockquote that holds it.
+      // A fence also ends with the blockquote or list item that holds it.
       fence = undefined;
+      item = 0;
     }
     // Blockquote prefixes are containers: code inside them is still code.
     const quote = line.match(/^(?: {0,3}> ?)*/)![0];
     const depth = (quote.match(/>/g) ?? []).length;
     const inner = line.slice(quote.length);
-    const open = inner.match(/^ {0,3}(`{3,}|~{3,})(.*)$/);
-    if (open && !(open[1][0] === "`" && open[2].includes("`"))) {
-      fence = { run: open[1], depth };
+    if (depth !== prevDepth) item = 0;
+    const marker = inner.match(/^ {0,3}(?:[-*+]|\d{1,9}[.)])[ \t]+/);
+    if (marker) item = marker[0].length;
+    else if (inner.trim() !== "" && inner.match(/^ */)![0].length < item) item = 0;
+    // A fence can open a list item (`- ~~~html`, `10. ~~~html`) or sit on
+    // one of its later lines, indented to the item's content.
+    const open = inner.match(new RegExp(`^( {0,${item + 3}}(?:(?:[-*+]|\\d{1,9}[.)])[ \\t]+)?)(\`{3,}|~{3,})(.*)$`));
+    if (open && !(open[2][0] === "`" && open[3].includes("`"))) {
+      fence = { run: open[2], depth, item };
       indented = false;
+      code.push(true);
       continue;
     }
     // An indented code block starts a block (after a blank line, a fence or
@@ -104,14 +127,66 @@ export function markerText(body: string | null | undefined) {
     prevDepth = depth;
     if (!isBlank) indented = /^(?: {4}|\t| {0,3}\t)/.test(inner) && (indented || blank);
     blank = isBlank;
-    if (indented) continue;
-    kept.push(line);
+    code.push(indented);
   }
-  return kept.join("\n")
-    // An inline span closes with a backtick run of the same length, within
-    // one paragraph, so a stray backtick can't hide markers further down.
-    .replace(/(?<!`)(`+)(?!`)(?:(?!\n[ \t]*\n)[\s\S])*?(?<!`)\1(?!`)/g, " ")
+  return code;
+}
+// An inline span closes with a backtick run of the same length, within one
+// paragraph, so a stray backtick can't hide markers further down.
+const INLINE_SPAN = String.raw`(?<!\`)(\`+)(?!\`)(?:(?!\n[ \t]*\n)[\s\S])*?(?<!\`)\1(?!\`)`;
+export function markerText(body: string | null | undefined) {
+  const lines = (body ?? "").split("\n");
+  const code = codeLines(body ?? "");
+  return lines.filter((_, i) => !code[i]).join("\n")
+    .replace(new RegExp(INLINE_SPAN, "g"), " ")
     .replaceAll("&lt;", "<").replaceAll("&gt;", ">");
+}
+// `body` with every HTML-escaped agent marker outside Markdown code written
+// literally, or null when there is none. Escaped text in code is quoted
+// content and stays as it is; only the marker's own `&lt;!--` and `--&gt;`
+// change.
+export function literalMarkers(body: string | null | undefined): string | null {
+  if (!body?.includes("&lt;!--")) return null;
+  const lines = body.split("\n");
+  const code = codeLines(body);
+  const pattern = new RegExp(`${INLINE_SPAN}|&lt;!--(\\s*lfx-review-agent:[a-z-]+\\b[^\\n]*?\\s*)--&gt;`, "g");
+  const out: string[] = [];
+  let run: string[] = [];
+  const flush = () => {
+    if (!run.length) return;
+    out.push(run.join("\n").replace(pattern, (match, ticks, inner) => ticks ? match : `<!--${inner}-->`));
+    run = [];
+  };
+  lines.forEach((line, i) => {
+    if (code[i]) {
+      flush();
+      out.push(line);
+    } else run.push(line);
+  });
+  flush();
+  const fixed = out.join("\n");
+  return fixed === body ? null : fixed;
+}
+// Review IDs the reviewer's Step 7 report links for this pull request
+// (`.../pull/<n>#pullrequestreview-<id>`): the reviews this run posted.
+// Plain arrays, not Sets: the controller's state is saved as JSON between
+// tool calls.
+export function reportedReviewIds(text: string, owner: string, repo: string, number: number): number[] {
+  const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const url = new RegExp(`github\\.com/${esc(owner)}/${esc(repo)}/pull/${number}#pullrequestreview-(\\d+)`, "gi");
+  return [...new Set([...text.matchAll(url)].map((m) => Number(m[1])))];
+}
+// Own reviews this run posted (linked in its report and absent from the
+// list read before the reviewer ran) whose body carries an escaped marker,
+// with the literal body. Every other review is left alone.
+export function escapedNewReviews(
+  after: Review[], beforeIds: number[], postedIds: number[], reviewerLogin = login,
+): { id: number; body: string }[] {
+  return after.flatMap((r) => {
+    if (r.user?.login !== reviewerLogin || beforeIds.includes(r.id) || !postedIds.includes(r.id)) return [];
+    const body = literalMarkers(r.body);
+    return body ? [{ id: r.id, body }] : [];
+  });
 }
 
 // Decodes only this agent's own bodies; other accounts' text stays as written.

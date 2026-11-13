@@ -238,3 +238,58 @@ test("failed or malformed GitHub reads hand the original input to the reviewer",
     assert.equal(result.calls.some(([name]) => name === "lfx_one_github_issues_add_labels"), false);
   }
 });
+
+const escapedBody = "&lt;!-- lfx-review-agent:review --&gt; &lt;!-- lfx-review-agent:review-of review=1 --&gt;\nNote.";
+const literalBody = "<!-- lfx-review-agent:review --> <!-- lfx-review-agent:review-of review=1 -->\nNote.";
+const postedReport = (id) => `Review posted: REQUEST_CHANGES\n\n- Formal review (with inline comments): https://github.com/linuxfoundation/lfx-test/pull/15#pullrequestreview-${id}`;
+function repairRun({ reviewerText = postedReport(7), after, listAfter, update } = {}) {
+  let reviewed = false;
+  return dispatch([], [], event, {
+    reviewer: async () => { reviewed = true; return { type: "text", text: reviewerText }; },
+    lfx_one_github_pulls_list_reviews: async (p) => {
+      if (!reviewed) return [];
+      if (listAfter) return listAfter(p);
+      return after.slice((p.page - 1) * 100, p.page * 100);
+    },
+    lfx_one_github_pulls_update_review: update ?? (async (p) => review("CHANGES_REQUESTED", { id: p.review_id, body: p.body })),
+  });
+}
+
+test("the review this run posted is rewritten when its markers are escaped", async () => {
+  const result = await repairRun({ after: [review("CHANGES_REQUESTED", { id: 7, body: escapedBody })] });
+  const updates = result.calls.filter(([n]) => n === "lfx_one_github_pulls_update_review");
+  assert.deepEqual(updates.map(([, p]) => p), [
+    { owner: "linuxfoundation", repo: "lfx-test", pull_number: 15, review_id: 7, body: literalBody },
+  ]);
+  assert.ok(result.text.startsWith(postedReport(7)));
+  assert.match(result.text, /Escaped markers rewritten in review 7\.$/);
+});
+
+test("another run's escaped review and literal reviews are left alone", async () => {
+  const result = await repairRun({
+    after: [
+      review("CHANGES_REQUESTED", { id: 7, body: literalBody }),
+      review("COMMENTED", { id: 8, body: escapedBody }),
+    ],
+  });
+  assert.equal(result.calls.filter(([n]) => n === "lfx_one_github_pulls_update_review").length, 0);
+  assert.equal(result.text, postedReport(7));
+});
+
+test("a failed repair keeps the reviewer's result", async () => {
+  const listFails = await repairRun({ listAfter: async () => { throw new Error("502 Bad Gateway"); } });
+  assert.ok(listFails.text.startsWith(`${postedReport(7)} Marker repair failed (`));
+  assert.match(listFails.text, /502 Bad Gateway\)\.$/);
+  const updateFails = await repairRun({
+    after: [review("CHANGES_REQUESTED", { id: 7, body: escapedBody })],
+    update: async () => { throw new Error("403 Forbidden"); },
+  });
+  assert.ok(updateFails.text.startsWith(`${postedReport(7)} Marker repair failed (`));
+  assert.match(updateFails.text, /403 Forbidden\)\.$/);
+});
+
+test("a run whose report links no review makes no repair read", async () => {
+  const result = await repairRun({ reviewerText: "Review not started: excluded (meeting-ics)", after: [] });
+  assert.equal(result.calls.filter(([n]) => n === "lfx_one_github_pulls_list_reviews").length, 1);
+  assert.equal(result.text, "Review not started: excluded (meeting-ics)");
+});

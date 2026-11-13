@@ -9,7 +9,7 @@
 openapi: 3.0.3
 info:
   title: LFX One GitHub
-  version: 1.0.7
+  version: 1.0.8
   description: GitHub REST operations the LFX review agent performs as lfx-one.
 servers:
   - url: https://api.github.com
@@ -46,6 +46,11 @@ components:
       schema: { type: integer }
     comment_id:
       name: comment_id
+      in: path
+      required: true
+      schema: { type: integer }
+    review_id:
+      name: review_id
       in: path
       required: true
       schema: { type: integer }
@@ -138,6 +143,26 @@ paths:
                 comments:
                   type: array
                   items: { type: object }
+      responses:
+        "200": { $ref: "#/components/responses/Ok" }
+  /repos/{owner}/{repo}/pulls/{pull_number}/reviews/{review_id}:
+    put:
+      operationId: pulls_update_review
+      summary: Update the body of a submitted review
+      parameters:
+        - $ref: "#/components/parameters/owner"
+        - $ref: "#/components/parameters/repo"
+        - $ref: "#/components/parameters/pull_number"
+        - $ref: "#/components/parameters/review_id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [body]
+              properties:
+                body: { type: string }
       responses:
         "200": { $ref: "#/components/responses/Ok" }
   /repos/{owner}/{repo}/pulls/{pull_number}/comments:

@@ -5,6 +5,10 @@ import test from "node:test";
 import {
   commentClass,
   eligibility,
+  escapedNewReviews,
+  literalMarkers,
+  markerText,
+  reportedReviewIds,
   eventDetails,
   historyScope,
   login,
@@ -287,4 +291,146 @@ test("finding markers do not change own-review classification", () => {
   assert.equal(historyScope("synchronize", "b", [unmarked]).mode, "undecided");
   // Finding lines in a conversation comment are not a session or notice.
   assert.equal(commentClass({ user: { login }, body: findingLines.join("\n") }), "other");
+});
+
+test("escaped agent markers outside code are written literally", () => {
+  const esc = (m) => `&lt;!-- lfx-review-agent:${m} --&gt;`;
+  const lit = (m) => `<!-- lfx-review-agent:${m} -->`;
+  // Every marker escaped, as on a fully escaped follow-up.
+  const full = [
+    `${esc("review")} ${esc("review-of review=3")}`,
+    "Two earlier findings are fixed.",
+    "",
+    esc("finding-status id=r1-f1 status=resolved resolution=fixed"),
+    esc("finding-status id=r1-f2 status=open resolution=no-thread"),
+  ].join("\n");
+  assert.equal(literalMarkers(full), [
+    `${lit("review")} ${lit("review-of review=3")}`,
+    "Two earlier findings are fixed.",
+    "",
+    lit("finding-status id=r1-f1 status=resolved resolution=fixed"),
+    lit("finding-status id=r1-f2 status=open resolution=no-thread"),
+  ].join("\n"));
+  // Only the first line escaped; later literal markers are untouched.
+  const firstLine = `${esc("review")} ${esc("review-of review=1")}\nNote.\n\n**Documentation**\n${lit("docs-reminder")}`;
+  assert.equal(literalMarkers(firstLine), `${lit("review")} ${lit("review-of review=1")}\nNote.\n\n**Documentation**\n${lit("docs-reminder")}`);
+  // Quoted in an inline code span or a fenced block: quoted content, kept.
+  const quoted = `${lit("review")}\nThe diff adds \`${esc("finding id=r9-f9")}\` to a template.\n\n\`\`\`html\n${esc("review")}\n\`\`\``;
+  assert.equal(literalMarkers(quoted), null);
+  // A code span next to an escaped marker: only the marker changes.
+  assert.equal(
+    literalMarkers(`${esc("review")} uses \`&lt;!-- x --&gt;\``),
+    `${lit("review")} uses \`&lt;!-- x --&gt;\``,
+  );
+  // Other escaped HTML and already-literal bodies are left alone.
+  assert.equal(literalMarkers(`${lit("review")}\nRenders &lt;div&gt; and &lt;!-- a note --&gt;.`), null);
+  assert.equal(literalMarkers(lit("review")), null);
+  assert.equal(literalMarkers(null), null);
+});
+
+test("only own reviews this run posted are repaired", () => {
+  const esc = "&lt;!-- lfx-review-agent:review --&gt;";
+  const reviews = [
+    { id: 1, state: "COMMENTED", body: esc, user: { login } },            // earlier run
+    { id: 2, state: "COMMENTED", body: esc, user: { login: "someone" } },  // not ours
+    { id: 3, state: "APPROVED", body: "<!-- lfx-review-agent:review -->", user: { login } }, // literal
+    { id: 4, state: "CHANGES_REQUESTED", body: esc, user: { login } },     // this run
+    { id: 5, state: "COMMENTED", body: esc, user: { login } },             // another run, same window
+  ];
+  assert.deepEqual(escapedNewReviews(reviews, [1, 2], [1, 3, 4]), [
+    { id: 4, body: "<!-- lfx-review-agent:review -->" },
+  ]);
+});
+
+test("the reviewer's report names the reviews it posted on this pull request", () => {
+  const report = [
+    "Review posted: REQUEST_CHANGES",
+    "- Summary comment: https://github.com/linuxfoundation/lfx-test/pull/15#issuecomment-9",
+    "- Formal review (with inline comments): https://github.com/linuxfoundation/lfx-test/pull/15#pullrequestreview-77",
+    "Earlier: https://github.com/linuxfoundation/lfx-test/pull/16#pullrequestreview-88",
+    "Other repo: https://github.com/linuxfoundation/lfx-testx/pull/15#pullrequestreview-99",
+  ].join("\n");
+  assert.deepEqual(reportedReviewIds(report, "linuxfoundation", "lfx-test", 15), [77]);
+  assert.deepEqual(reportedReviewIds("Review not started: excluded", "linuxfoundation", "lfx-test", 15), []);
+});
+
+test("fences that open a list item are code", () => {
+  const esc = (m) => `&lt;!-- lfx-review-agent:${m} --&gt;`;
+  const body = [
+    esc("review"),
+    "- Quoted from the diff:",
+    "- ~~~html",
+    `  ${esc("finding id=r9-f9 severity=nit dimension=correctness topic=other")}`,
+    "  ~~~",
+    "",
+    esc("docs-reminder"),
+  ].join("\n");
+  const fixed = literalMarkers(body).split("\n");
+  assert.equal(fixed[0], "<!-- lfx-review-agent:review -->");
+  assert.equal(fixed[3], `  ${esc("finding id=r9-f9 severity=nit dimension=correctness topic=other")}`);
+  assert.equal(fixed[6], "<!-- lfx-review-agent:docs-reminder -->");
+});
+
+test("a fence in a wide list item closes, so later markers are still found", () => {
+  const esc = (m) => `&lt;!-- lfx-review-agent:${m} --&gt;`;
+  const quoted = esc("finding id=r9-f9 severity=nit dimension=correctness topic=other");
+  const status = "finding-status id=r1-f1 status=resolved resolution=fixed";
+  const body = [
+    esc("review"),
+    "10. ~~~html",
+    `    ${quoted}`,
+    "    ~~~",
+    "",
+    esc(status),
+  ].join("\n");
+  const fixed = literalMarkers(body).split("\n");
+  assert.equal(fixed[0], "<!-- lfx-review-agent:review -->");
+  assert.equal(fixed[2], `    ${quoted}`);
+  assert.equal(fixed[5], `<!-- lfx-review-agent:${status} -->`);
+  // The reader sets the fenced example aside and still sees the marker after it.
+  const read = markerText(body);
+  assert.ok(read.includes(`<!-- lfx-review-agent:${status} -->`));
+  assert.ok(!read.includes("r9-f9"));
+});
+
+test("an unclosed fence in a list item ends with the item", () => {
+  const esc = (m) => `&lt;!-- lfx-review-agent:${m} --&gt;`;
+  const status = "finding-status id=r1-f2 status=open resolution=no-thread";
+  const body = [
+    esc("review"),
+    "- Quoted from the diff:",
+    "- ~~~html",
+    `  ${esc("finding id=r9-f9 severity=nit dimension=correctness topic=other")}`,
+    "",
+    "The snippet above was never closed.",
+    esc(status),
+  ].join("\n");
+  const fixed = literalMarkers(body).split("\n");
+  assert.equal(fixed[3], `  ${esc("finding id=r9-f9 severity=nit dimension=correctness topic=other")}`);
+  assert.equal(fixed[6], `<!-- lfx-review-agent:${status} -->`);
+  const read = markerText(body);
+  assert.ok(read.includes(`<!-- lfx-review-agent:${status} -->`));
+  assert.ok(!read.includes("r9-f9"));
+});
+
+test("a fence on a list item's later line is code", () => {
+  const esc = (m) => `&lt;!-- lfx-review-agent:${m} --&gt;`;
+  const quoted = esc("finding id=r9-f9 severity=nit dimension=correctness topic=other");
+  const status = "finding-status id=r1-f1 status=resolved resolution=fixed";
+  const body = [
+    esc("review"),
+    "10. Quoted from the diff:",
+    "    ~~~html",
+    `    ${quoted}`,
+    "    ~~~",
+    "",
+    esc(status),
+  ].join("\n");
+  const fixed = literalMarkers(body).split("\n");
+  assert.equal(fixed[0], "<!-- lfx-review-agent:review -->");
+  assert.equal(fixed[3], `    ${quoted}`);
+  assert.equal(fixed[6], `<!-- lfx-review-agent:${status} -->`);
+  const read = markerText(body);
+  assert.ok(read.includes(`<!-- lfx-review-agent:${status} -->`));
+  assert.ok(!read.includes("r9-f9"));
 });

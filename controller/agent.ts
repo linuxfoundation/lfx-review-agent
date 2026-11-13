@@ -8,9 +8,11 @@ import { z } from "zod";
 import {
   commentClass,
   eligibility,
+  escapedNewReviews,
   eventDetails,
   historyScope,
   readEvent,
+  reportedReviewIds,
 } from "./preflight.js";
 
 import { prMetadata, reviewMetadata, commentMetadata } from "./metadata.js";
@@ -24,6 +26,28 @@ function withOutput<I, O>(source: Pick<Tool<I>, "inputSchema">, endpoint: Endpoi
     endpoint: { ...endpoint, responseSchema: outputSchema }, owner: "linux-foundation", versionNumber: "1.0.7",
   });
 }
+// Integration 1.0.8 adds this operation. The 1.0.7 package has no
+// generated endpoint for it, so it is declared here.
+const updateReviewParams = z.object({
+  owner: z.string(), repo: z.string(), pull_number: z.number().int(),
+  review_id: z.number().int(), body: z.string(),
+});
+const pullsUpdateReview: Endpoint = {
+  method: "PUT",
+  path: "/repos/{owner}/{repo}/pulls/{pull_number}/reviews/{review_id}",
+  description: "Update the body of a submitted review",
+  format: "application/json",
+  parameters: [
+    { name: "owner", type: "path", schema: updateReviewParams.shape.owner },
+    { name: "repo", type: "path", schema: updateReviewParams.shape.repo },
+    { name: "pull_number", type: "path", schema: updateReviewParams.shape.pull_number },
+    { name: "review_id", type: "path", schema: updateReviewParams.shape.review_id },
+    { name: "body", type: "body", schema: updateReviewParams.shape.body },
+  ],
+  parameterSchema: updateReviewParams,
+  responseSchema: reviewMetadata,
+  errors: [],
+};
 const tools = {
   lfx_one_github_pulls_get: withOutput(LfxOneGithubTools.lfx_one_github_pulls_get, endpoints.lfx_one_github_pulls_get, prMetadata),
   lfx_one_github_pulls_list_reviews: withOutput(LfxOneGithubTools.lfx_one_github_pulls_list_reviews, endpoints.lfx_one_github_pulls_list_reviews, reviewMetadata.array()),
@@ -31,8 +55,45 @@ const tools = {
   lfx_one_github_issues_add_labels: LfxOneGithubTools.lfx_one_github_issues_add_labels,
   lfx_one_github_issues_create_comment: withOutput(LfxOneGithubTools.lfx_one_github_issues_create_comment, endpoints.lfx_one_github_issues_create_comment, commentMetadata),
   lfx_one_github_issues_update_comment: LfxOneGithubTools.lfx_one_github_issues_update_comment,
+  lfx_one_github_pulls_update_review: guildServiceTool("lfx-one-github", {
+    description: pullsUpdateReview.description, inputSchema: updateReviewParams, outputSchema: reviewMetadata,
+    endpoint: pullsUpdateReview, owner: "linux-foundation", versionNumber: "1.0.8",
+  }),
   reviewer,
 };
+
+// The reviewer sometimes posts its review with HTML-escaped markers
+// (`&lt;!-- ... --&gt;`), which show as text and that metrics readers miss.
+// Rewrite them literally, only in own reviews this run posted: the ones its
+// report links that were not on the PR before it ran. Never fails the run:
+// the review is already posted.
+async function repairEscapedMarkers(
+  task: Task<typeof tools>,
+  params: { owner: string; repo: string; pull_number: number },
+  beforeIds: number[],
+  report: string,
+  login: string,
+) {
+  const posted = reportedReviewIds(report, params.owner, params.repo, params.pull_number);
+  if (!posted.length) return "";
+  try {
+    const after: z.infer<typeof reviewMetadata>[] = [];
+    let page = 1;
+    while (true) {
+      const batch = reviewMetadata.array().parse(await task.tools.lfx_one_github_pulls_list_reviews({ ...params, per_page: 100, page }));
+      after.push(...batch);
+      if (batch.length < 100) break;
+      page += 1;
+    }
+    const repairs = escapedNewReviews(after, beforeIds, posted, login);
+    for (const { id, body } of repairs)
+      await task.tools.lfx_one_github_pulls_update_review({ ...params, review_id: id, body });
+    return repairs.length ? `Escaped markers rewritten in review ${repairs.map(r => r.id).join(", ")}.` : "";
+  } catch (error) {
+    const reason = (error instanceof Error ? error.message : String(error)).replace(/\s+/g, " ").slice(0, 200);
+    return `Marker repair failed (${reason}).`;
+  }
+}
 
 async function run(
   input: z.infer<typeof inputSchema>,
@@ -196,9 +257,11 @@ async function run(
     })),
     scope,
   };
-  return await task.tools.reviewer({
+  const result = await task.tools.reviewer({
     text: JSON.stringify({ event, prepared }),
   });
+  const repair = await repairEscapedMarkers(task, params, reviews.map((r) => r.id), result.text, login);
+  return repair ? { ...result, text: `${result.text} ${repair}` } : result;
 }
 
 export default agent({ inputSchema, outputSchema, tools, run });
