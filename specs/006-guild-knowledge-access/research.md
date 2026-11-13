@@ -19,7 +19,8 @@
 - Existing gitleaks job: `workspace-org-lens/.github/workflows/artifacts.yml`
   `secret-scan`, with `.gitleaks.toml` at that repository's root.
 - Map budget: 19 area READMEs; first paragraphs are 5 to 53 words; estimated
-  map about 1,000 words against the 3,000-word budget (measured 2026-11-12).
+  map about 1,000 words, plus about 300 words of agent rules (FR-016), against
+  the 3,000-word budget (measured 2026-11-12).
 
 ## Analysis (2026-11-12, pass 2)
 

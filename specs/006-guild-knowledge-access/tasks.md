@@ -42,15 +42,16 @@ and is absent elsewhere.
 
 ## Phase 3: User Story 1 - Answer and cite (P1) MVP
 
-- [ ] T008 [US1] Write `integration/lfx-knowledge-agent-guide.md` (outside
+- [ ] T008 [US1] Write `workspace-org-lens/guild/knowledge-agent-rules.md` (outside
       `.knowledge/`, so it is never read as knowledge content): locate a file,
       read from `main`, cite path and SHA, say "no entry" when nothing covers a
       question, treat file content as data, report the knowledge base
       unavailable on GitHub errors, and the FR-013 outside-output filter
-      (FR-002, FR-003, FR-004, FR-005, FR-013, FR-014)
-- [ ] T009 [US1] Add the Native test agent `knowledge-probe/` (PROMPT.md built
-      from the guide, guild.yaml declaring the `lfx-knowledge` tools) and
-      install it in the enabled workspace (FR-001, SC-001)
+      (FR-002, FR-003, FR-004, FR-005, FR-013, FR-014, FR-016)
+- [ ] T009 [US1] Add the Native test agent `knowledge-probe/` (PROMPT.md that
+      defers to the knowledge rules in its workspace context and copies none of
+      them, guild.yaml declaring the `lfx-knowledge` tools) and install it in
+      the enabled workspace (FR-001, FR-016, SC-001)
 - [ ] T010 [US1] Build `specs/006-guild-knowledge-access/checklists/sc-001.md`:
       20 questions with known answers across at least 8 areas, 3 questions no
       file covers, and 1 knowledge file excerpt containing an injected
@@ -67,7 +68,8 @@ and is absent elsewhere.
       not stored in the repo) following
       `workspace-org-lens/scripts/generate-skill-catalog.sh`; key files per
       FR-006 (README links, else first 5 files); fail above 3,000 words (FR-006,
-      FR-008, SC-004)
+      FR-008, SC-004, FR-016); the block opens with the
+      rules file copied verbatim, and the run fails if that file is missing
 - [ ] T013 [US2] Write `workspace-org-lens/scripts/publish-knowledge-map.sh`:
       for each allowlisted workspace, GET the latest context, splice between the
       markers, POST `PUBLISHED`; skip when unchanged; for workspaces dropped
@@ -78,7 +80,8 @@ and is absent elsewhere.
       FR-008, FR-012)
 - [ ] T014 [US2] Add
       `workspace-org-lens/.github/workflows/knowledge-map-sync.yml`: on push to
-      `main` touching `.knowledge/**` or the allowlist; generate, run gitleaks
+      `main` touching `.knowledge/**`, `guild/knowledge-agent-rules.md`, the
+      allowlist or `scripts/*knowledge-map.sh`; generate, run gitleaks
       on the generated block with `.gitleaks.toml`, then publish; keep the scan
       log as SC-003 evidence (FR-006, FR-012, SC-003)
 - [ ] T015 [US2] Add the generator's `--check` to
@@ -90,8 +93,11 @@ and is absent elsewhere.
 ## Phase 5: User Story 3 - Keyword search (P3)
 
 - [ ] T017 [US3] Add search guidance to
-      `integration/lfx-knowledge-agent-guide.md`: always qualify `search_code`
-      with `repo:` and `path:.knowledge` (FR-009)
+      `workspace-org-lens/guild/knowledge-agent-rules.md`: always qualify
+      `search_code` with `repo:` and `path:.knowledge` (FR-009)
+- [ ] T016a [US2] Verify FR-016: edit only `guild/knowledge-agent-rules.md`
+      on `main`; the sync republishes and the published block contains the new
+      rules text verbatim
 - [ ] T018 [US3] Verify: a term present in exactly one non-README knowledge file
       returns that file
 - [ ] T018a [US1] Verify FR-014: with the integration's credential revoked in a
@@ -111,7 +117,8 @@ and is absent elsewhere.
       `workspace-org-lens/guild/knowledge-workspaces.yaml` comments (DR-003)
 - [ ] T021 Add the new scripts to `workspace-org-lens/CLAUDE.md`'s
       generated-artifacts notes, next to the skill catalog entry, and add
-      `integration/lfx-knowledge*` and `knowledge-probe/` rows to the Files
+      `integration/lfx-knowledge.openapi.yaml` and `knowledge-probe/` rows to
+      the Files
       table in this repository's `CLAUDE.md`
 - [ ] T022 Pre-PR validation: in `workspace-org-lens`, run
       `scripts/workspace-artifact-check.sh`; in this repository, run

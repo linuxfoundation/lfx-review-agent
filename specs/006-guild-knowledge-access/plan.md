@@ -48,7 +48,7 @@ The agent side follows this repository's `CLAUDE.md`; the sync side lives in
 - **IV. License and DCO Compliance**: APPLIES. New script, workflow, OpenAPI
   and YAML files carry the LF header; commits are DCO-signed. YAML follows the
   Cross-Repo conventions (yamllint).
-- **This repository's `CLAUDE.md`**: APPLIES to the integration, guide and test
+- **This repository's `CLAUDE.md`**: APPLIES to the integration and test
   agent. The root reviewer's `PROMPT.md` and `guild.yaml` are not changed, so
   no agent version bump; Markdown passes `markdownlint`.
 
@@ -89,8 +89,7 @@ In this repository (`lfx-review-agent`), the agent side:
 
 ```text
 integration/lfx-knowledge.openapi.yaml       # dedicated integration: tree, content, code search
-integration/lfx-knowledge-agent-guide.md     # agent rules: read main, cite, no-entry, data-not-instructions, search qualifier, outside-output filter
-knowledge-probe/PROMPT.md, guild.yaml        # Native test agent using the guide and integration; runs SC-001
+knowledge-probe/PROMPT.md, guild.yaml        # Native test agent; follows the rules from workspace context; runs SC-001
 ```
 
 In `workspace-org-lens`, the sync side, next to the knowledge it reads:
@@ -98,17 +97,21 @@ In `workspace-org-lens`, the sync side, next to the knowledge it reads:
 ```text
 scripts/generate-knowledge-map.sh          # print | --write <file> | --check, budget enforced
 scripts/publish-knowledge-map.sh           # splice map into each allowlisted workspace context, POST PUBLISHED
+guild/knowledge-agent-rules.md             # agent rules, copied verbatim into the generated block (FR-016)
 guild/knowledge-workspaces.yaml            # allowlist: workspace id, model policy, membership check, review date
-.github/workflows/knowledge-map-sync.yml   # on push to main touching .knowledge/** or the allowlist
+.github/workflows/knowledge-map-sync.yml   # on push to main touching .knowledge/**, the rules, the allowlist or the scripts
 ```
 
-**Structure Decision**: The integration, guide and test agent live here with
-the other Guild agent sources (`integration/` already holds
-`lfx-one-github.openapi.yaml`). The map sync lives in `workspace-org-lens`
-because it reads `.knowledge/` and runs on that repository's merges. The guide
-lives outside `.knowledge/` so it is never read as knowledge content (FR-005).
-The test agent `knowledge-probe/` measures SC-001; other agents (for example
-spec 005's tracer) adopt the integration and guide in their own features.
+**Structure Decision**: The integration and the test agent live here with the
+other Guild agent sources (`integration/` already holds
+`lfx-one-github.openapi.yaml`). The map sync and the agent rules live in
+`workspace-org-lens`: the sync reads `.knowledge/` and runs on that
+repository's merges, and the rules ride inside the generated block because a
+Native agent can read only its prompt and its workspace context (FR-016,
+DR-005). The rules file sits outside `.knowledge/`, so it is never read as
+knowledge content (FR-005). The test agent `knowledge-probe/` measures SC-001;
+other agents (for example spec 005's tracer) adopt the integration in their own
+features and get the rules from the same workspace context.
 
 ## Complexity Tracking
 

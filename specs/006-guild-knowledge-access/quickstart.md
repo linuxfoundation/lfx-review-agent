@@ -21,10 +21,12 @@ the approved model provider, and the CI API key scope.
 
 1. Run `scripts/generate-knowledge-map.sh --check`; it passes under 3,000
    words (T012).
-2. Merge a README change; the new map version appears in every enabled
+2. Edit only `guild/knowledge-agent-rules.md` and merge; every enabled
+   workspace gets a block with the new rules verbatim (T016a).
+3. Merge a README change; the new map version appears in every enabled
    workspace within 1 hour, and hand-written context is unchanged (T013a,
    T016).
-3. Drop a test workspace from the allowlist; its generated block is removed
+4. Drop a test workspace from the allowlist; its generated block is removed
    (T019b).
 
 ## 4. Agent answers

@@ -14,8 +14,9 @@
 | Field | Notes |
 |---|---|
 | `generated_from` | `main` commit SHA |
+| `rules` | Full text of `guild/knowledge-agent-rules.md`, verbatim (FR-016) |
 | `areas` | Knowledge area list, sorted by path |
-| `word_count` | Must be at most 3,000 (FR-008) |
+| `word_count` | Rules plus areas; must be at most 3,000 (FR-008) |
 
 Rendered as Markdown between `<!-- BEGIN GENERATED KNOWLEDGE MAP -->` and
 `<!-- END GENERATED KNOWLEDGE MAP -->`.

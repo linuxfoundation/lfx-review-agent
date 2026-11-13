@@ -43,7 +43,8 @@ context, and it changes too often to copy by hand.
 - Q: What is the map's size budget? -> A: 3,000 words (about 4,000 tokens).
   Workspace context goes into every agent's first prompt, and the docs warn
   that long context degrades agents. The 19 area READMEs produce an estimated
-  1,000-word map, well inside the budget.
+  1,000-word map, and the agent rules add about 300 words (FR-016), well inside
+  the budget.
 - Q: Which Guild workspaces are enabled? -> A: Only workspaces listed in a
   reviewed allowlist file in `workspace-org-lens`. Each entry records a check
   that
@@ -158,14 +159,22 @@ file outside its area README. Confirm that file is returned.
 #### Map
 
 - **FR-006**: A map of the knowledge base MUST be generated on every merge to
-  `main` that touches `.knowledge/`. Each area's summary comes from its README;
+  `main` that touches `.knowledge/`, the agent rules file, the allowlist or the
+  map scripts. Each area's summary comes from its README;
   its key files are the Markdown files the README links, or, when it links
   none, the first five Markdown files in the directory by name.
 - **FR-007**: The map MUST be published as the workspace context of each
   enabled workspace, replacing only its generated section and preserving
   hand-written context.
 - **FR-008**: The map MUST stay within a size budget; a sync that exceeds it
-  MUST fail and publish nothing. Budget: 3,000 words (see Clarifications).
+  MUST fail and publish nothing. Budget: 3,000 words (see Clarifications),
+  rules included.
+- **FR-016**: The generated block MUST contain the complete agent rules that
+  FR-002 to FR-005, FR-009, FR-013 and FR-014 place on agents, copied verbatim
+  from `guild/knowledge-agent-rules.md`, which lives outside `.knowledge/`.
+  Agents MUST NOT depend on loading any file path to learn these rules: a
+  Native agent can only read its prompt and its workspace context. A sync that
+  cannot read the rules file MUST fail and publish nothing (DR-005).
 
 #### Search
 
@@ -231,6 +240,7 @@ file outside its area README. Confirm that file is returned.
 | [DR-002](decisions/DR-002-dedicated-read-credential.md) | Dedicated read-only, single-repository credential and integration, not the `lfx-one` review credential | Accepted |
 | [DR-003](decisions/DR-003-workspace-allowlist.md) | Enabled workspaces come from a reviewed allowlist with a recorded membership check | Accepted |
 | [DR-004](decisions/DR-004-model-provider.md) | Knowledge may reach the model unredacted only under an approved model policy; replies are filtered by audience | Accepted |
+| [DR-005](decisions/DR-005-rules-in-generated-block.md) | Agent rules ship verbatim inside the generated block, sourced from `workspace-org-lens` | Accepted |
 
 ## Success Criteria *(mandatory)*
 

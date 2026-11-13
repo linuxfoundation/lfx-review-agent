@@ -38,6 +38,10 @@ proceeding to planning
   GitHub endpoints because choosing among them is the decision (DR-001).
 - Outcomes are unmeasured until the integration and sync exist; research
   items 1 to 4 block them.
+- Review on 2026-11-12: agent rules moved from a guide file in this
+  repository into the generated block, because a Native agent cannot load a
+  file path and the sync could not fetch or refresh it (FR-016, DR-005).
+  Rechecked: all items unchanged.
 - Moved from `workspace-org-lens` (where it was drafted as spec 062) on
   2026-11-12. The sync side still lands in `workspace-org-lens`; the agent
   side lands here.
