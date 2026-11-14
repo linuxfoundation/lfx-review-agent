@@ -282,7 +282,7 @@ not retryable.
 
 ## Agent version
 
-This prompt is review agent version **`0.1.28`**. Step 3.5 shows it in the
+This prompt is review agent version **`0.1.29`**. Step 3.5 shows it in the
 start comment so readers can tell which version ran a review. Use this
 value exactly; it is not read from any tool or from the webhook payload.
 

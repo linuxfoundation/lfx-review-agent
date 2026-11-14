@@ -1,6 +1,6 @@
 {
   "name": "@guildai/linux-foundation~lfx-review-controller",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "author": "The Linux Foundation and contributors",
   "type": "module",
   "exports": {
@@ -26,7 +26,7 @@
   "dependencies": {
     "@guildai/agents-sdk": "*",
     "zod": "~4.3.0",
-    "@guildai-services/linux-foundation~lfx-one-github": "1.0.7"
+    "@guildai-services/linux-foundation~lfx-one-github": "1.0.8"
   },
   "files": [
     "./dist"

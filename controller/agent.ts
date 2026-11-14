@@ -19,35 +19,13 @@ import { prMetadata, reviewMetadata, commentMetadata } from "./metadata.js";
 
 const inputSchema = z.object({ type: z.literal("text"), text: z.string() });
 const outputSchema = z.object({ type: z.literal("text"), text: z.string() });
-const reviewer = guildAgentTool({ inputSchema: z.object({ text: z.string() }), outputSchema, calls: "@guildai/linux-foundation~lfx-review-agent@0.1.28" });
+const reviewer = guildAgentTool({ inputSchema: z.object({ text: z.string() }), outputSchema, calls: "@guildai/linux-foundation~lfx-review-agent@0.1.29" });
 function withOutput<I, O>(source: Pick<Tool<I>, "inputSchema">, endpoint: Endpoint, outputSchema: z.ZodType<O>): Tool<I, O> {
   return guildServiceTool("lfx-one-github", {
     description: endpoint.description, inputSchema: source.inputSchema, outputSchema,
-    endpoint: { ...endpoint, responseSchema: outputSchema }, owner: "linux-foundation", versionNumber: "1.0.7",
+    endpoint: { ...endpoint, responseSchema: outputSchema }, owner: "linux-foundation", versionNumber: "1.0.8",
   });
 }
-// Integration 1.0.8 adds this operation. The 1.0.7 package has no
-// generated endpoint for it, so it is declared here.
-const updateReviewParams = z.object({
-  owner: z.string(), repo: z.string(), pull_number: z.number().int(),
-  review_id: z.number().int(), body: z.string(),
-});
-const pullsUpdateReview: Endpoint = {
-  method: "PUT",
-  path: "/repos/{owner}/{repo}/pulls/{pull_number}/reviews/{review_id}",
-  description: "Update the body of a submitted review",
-  format: "application/json",
-  parameters: [
-    { name: "owner", type: "path", schema: updateReviewParams.shape.owner },
-    { name: "repo", type: "path", schema: updateReviewParams.shape.repo },
-    { name: "pull_number", type: "path", schema: updateReviewParams.shape.pull_number },
-    { name: "review_id", type: "path", schema: updateReviewParams.shape.review_id },
-    { name: "body", type: "body", schema: updateReviewParams.shape.body },
-  ],
-  parameterSchema: updateReviewParams,
-  responseSchema: reviewMetadata,
-  errors: [],
-};
 const tools = {
   lfx_one_github_pulls_get: withOutput(LfxOneGithubTools.lfx_one_github_pulls_get, endpoints.lfx_one_github_pulls_get, prMetadata),
   lfx_one_github_pulls_list_reviews: withOutput(LfxOneGithubTools.lfx_one_github_pulls_list_reviews, endpoints.lfx_one_github_pulls_list_reviews, reviewMetadata.array()),
@@ -55,10 +33,7 @@ const tools = {
   lfx_one_github_issues_add_labels: LfxOneGithubTools.lfx_one_github_issues_add_labels,
   lfx_one_github_issues_create_comment: withOutput(LfxOneGithubTools.lfx_one_github_issues_create_comment, endpoints.lfx_one_github_issues_create_comment, commentMetadata),
   lfx_one_github_issues_update_comment: LfxOneGithubTools.lfx_one_github_issues_update_comment,
-  lfx_one_github_pulls_update_review: guildServiceTool("lfx-one-github", {
-    description: pullsUpdateReview.description, inputSchema: updateReviewParams, outputSchema: reviewMetadata,
-    endpoint: pullsUpdateReview, owner: "linux-foundation", versionNumber: "1.0.8",
-  }),
+  lfx_one_github_pulls_update_review: withOutput(LfxOneGithubTools.lfx_one_github_pulls_update_review, endpoints.lfx_one_github_pulls_update_review, reviewMetadata),
   reviewer,
 };
 
