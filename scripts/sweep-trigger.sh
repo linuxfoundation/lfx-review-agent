@@ -24,8 +24,9 @@ AGENT=linux-foundation~lfx-review-agent
 CONTROLLER=linux-foundation~lfx-review-controller
 SOURCE_AGENT=${REVIEW_AGENT:-$AGENT}
 NAME="lfx-review-agent sweep"
-# Four runs an hour. Each run reviews at most one PR (PROMPT.md, Step 0.3)
-# and takes a few minutes, so runs do not overlap.
+# Four runs an hour. Each run reviews at most one PR (PROMPT.md, Step 0.3).
+# Runs can overlap; gate B (PROMPT.md, Step 1.5) stops a second review
+# of the same PR.
 MINUTES=2,17,32,47
 
 : "${WS:?set WS to the Guild workspace ID}"
