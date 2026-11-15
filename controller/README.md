@@ -28,7 +28,7 @@ stays.
   extra read.
 - A failed list or update is reported in the result and never fails the
   run; the review is already posted.
-- Runs the controller does not prepare are not repaired: the hourly sweep
+- Runs the controller does not prepare are not repaired: the sweep
   calls the Native reviewer directly, and a controller read failure falls
   back to the reviewer without a review list.
 - Updating a review sends a `pull_request_review` `edited` webhook. No

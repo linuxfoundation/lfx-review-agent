@@ -68,13 +68,16 @@ review, the five-minute cooldown or an already reviewed head without a
 model call. Otherwise it calls this agent and repairs escaped markers in
 the review it posted.
 
-An hourly Guild time trigger also starts a sweep. It reviews at most one
-PR an hour that is owed a review: a push dropped because a review was
-running or the agent had just commented, a review that did not finish, or
-a PR opened in the last 7 days that never got one. The agent marks PRs
-that may be owed a review with the label `lfx-review-agent-pending` and
-removes it when a review finishes on the current head. Removing it by hand
-only takes that PR out of the sweep. Never rename it: open PRs carry it.
+A Guild time trigger also starts a sweep four times an hour, at minutes 2, 17,
+32 and 47. Each sweep reviews at most one PR that is owed a review: a push
+dropped because a review was running or the agent had just commented, a review
+that did not finish, or a PR opened in the last 7 days that never got one. One
+PR per run keeps each review in its own session: a run that grows past the
+model's context limit ends without posting anything, and it would take every
+review in the run with it. The agent marks PRs that may be owed a review with
+the label `lfx-review-agent-pending` and removes it when a review finishes on
+the current head. Removing it by hand only takes that PR out of the sweep. Never
+rename it: open PRs carry it.
 
 ## Repository
 
@@ -159,7 +162,7 @@ PR event, so do it last.
    or branch protection accepts, with write access. Without it, the
    agent's approvals are advisory.
 4. **Triggers.** Run `scripts/onboard-repo.sh` for the repository, then
-   `scripts/sweep-trigger.sh --apply` so the hourly sweep covers it. The
+   `scripts/sweep-trigger.sh --apply` so the sweep covers it. The
    sweep checks up to 30 repositories for PRs that never got a review;
    past that, raise the search limit in `PROMPT.md` Step 0.3. See
    Triggers.
@@ -171,7 +174,7 @@ if the new repository has code the agent must not review.
 ## Triggers
 
 Every webhook trigger targets the review controller, which calls this
-agent. Only the hourly sweep calls this agent directly. Since 2026-11-14
+agent. Only the sweep calls this agent directly. Since 2026-11-14
 every onboarded repository runs through the controller; the triggers that
 called this agent directly are deactivated, not deleted, and must stay off.
 To move a repository between the two, see
@@ -201,7 +204,7 @@ must be unique within the workspace.
 | `pull_request` | `synchronize` | `lfx-review-agent <repo> synchronize controller` | a follow-up review after a push |
 | `pull_request` | `ready_for_review` | `lfx-review-agent <repo> ready_for_review controller` | the review of a PR that was a draft |
 | `issue_comment` | `created` | `lfx-review-agent <repo> re-review comment controller` | a review on a comment that starts with `@lfx-one re-review` (comment filter below) |
-| time, hourly at :17 | | `lfx-review-agent sweep` (one per workspace) | the sweep (`scripts/sweep-trigger.sh`) |
+| time, hourly at minutes 2, 17, 32, 47 | | `lfx-review-agent sweep` (one per workspace) | the sweep (`scripts/sweep-trigger.sh`) |
 
 `scripts/onboard-repo.sh` creates them. It takes one or more repository
 names, checks them all before creating anything, and skips any trigger
@@ -228,16 +231,15 @@ for every onboarded repository. It creates only the missing trigger.
 The sweep is one time trigger for the whole workspace. Its input is
 `{"lfx_review_agent_event": "sweep", "repos": [...]}`, and
 `scripts/sweep-trigger.sh` builds `repos` from the active `synchronize`
-triggers, so the list never goes into this repository. Without `--apply`
-it only prints what it would do. It updates the existing trigger in place,
-keeping its active or inactive state, or creates it when there is none
-(a new trigger starts active). When no `synchronize` trigger is left, it
-deactivates the sweep instead. Guild has no trigger delete; use
-`guild trigger deactivate <id>` to stop the sweep. When a repository
-leaves the review, rerun the script and delete the
-`lfx-review-agent-pending` label in that repository. The sweep removes the
-label from pull requests outside its list, but only while the token can
-still reach them.
+triggers, so the list never goes into this repository. Without `--apply` it only
+prints what it would do. It updates the existing trigger in place, setting
+`repos` and the schedule and keeping its active or inactive state, or creates it
+when there is none (a new trigger starts active). When no `synchronize` trigger
+is left, it deactivates the sweep instead. Guild has no trigger delete; use
+`guild trigger deactivate <id>` to stop the sweep. When a repository leaves the
+review, rerun the script and delete the `lfx-review-agent-pending` label in that
+repository. The sweep removes the label from pull requests outside its list, but
+only while the token can still reach them.
 
 ```bash
 WS=<workspace-id> scripts/sweep-trigger.sh            # dry run
