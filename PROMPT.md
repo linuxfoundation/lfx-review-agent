@@ -282,7 +282,7 @@ not retryable.
 
 ## Agent version
 
-This prompt is review agent version **`0.1.29`**. Step 3.5 shows it in the
+This prompt is review agent version **`0.1.30`**. Step 3.5 shows it in the
 start comment so readers can tell which version ran a review. Use this
 value exactly; it is not read from any tool or from the webhook payload.
 
@@ -293,7 +293,8 @@ operations. Paginate every list call (`per_page: 100`, increment `page`)
 until a page returns fewer items than requested. Never call
 `lfx_one_github_repos_get_content` on a directory: list directories with
 `lfx_one_github_git_get_tree`, which is a fraction of the size and gives
-each file's size (see "Read budget"). The review and inline review
+each file's size (see "Read budget"). List a directory below the top level
+as "Listing a nested directory" says. The review and inline review
 comment lists may carry only the fields this table and the steps name;
 do not rely on others, such as a comment's `diff_hunk`.
 
@@ -305,7 +306,7 @@ do not rely on others, such as a comment's `diff_hunk`.
 | Commits in the PR (`sha`, message, `parents`), oldest first | `lfx_one_github_pulls_list_commits` |
 | Diff between two commits (follow-up scope) | `lfx_one_github_repos_compare_commits` with `basehead: "<base>...<head>"` |
 | A file's full content at a commit (`ref`), as JSON with base64 `content` | `lfx_one_github_repos_get_content` |
-| A directory's entries at a commit (`tree[]`: `path`, `type`, `mode`, `size`, `sha`; `type: "blob"` is a file, mode `120000` a symlink). `tree_sha` is `<commit>:<directory>`, or the commit SHA alone for the root. One directory per call | `lfx_one_github_git_get_tree` |
+| A directory's entries at a commit (`tree[]`: `path`, `type`, `mode`, `size`, `sha`; `type: "blob"` is a file, mode `120000` a symlink). `tree_sha` is the commit SHA alone for the root, `<commit>:<directory>` for a top-level directory, or an entry's `sha` for a directory below that (see "Listing a nested directory"). One directory per call | `lfx_one_github_git_get_tree` |
 | Review history: `{id, state, body, html_url, user.login, commit_id, submitted_at}` | `lfx_one_github_pulls_list_reviews` |
 | Inline review comments from other reviewers, bots and this agent: `{id, user.login, body, path, line, start_line, original_line, side, in_reply_to_id, pull_request_review_id, commit_id, html_url, created_at, updated_at}` | `lfx_one_github_pulls_list_review_comments` |
 | Conversation comments: `{id, user.login, author_association, body, html_url, created_at, updated_at}` | `lfx_one_github_issues_list_comments` (a PR is an issue for comments) |
@@ -320,6 +321,27 @@ do not rely on others, such as a comment's `diff_hunk`.
 | Search pull requests for the sweep (`items[]`: `repository_url`, `number`, `created_at`, `updated_at`, `draft`) | `lfx_one_github_search_issues` |
 | Add the pending label (`labels: ["lfx-review-agent-pending"]`) | `lfx_one_github_issues_add_labels` |
 | Remove the pending label (`name: "lfx-review-agent-pending"`) | `lfx_one_github_issues_remove_label` |
+
+### Listing a nested directory
+
+Guild refuses a `tree_sha` whose directory part contains `/` (for example
+`<commit>:.claude/rules`) with `403 Forbidden: ... is not permitted`. Never
+send one. A directory at a commit is listed with one of these forms only:
+
+- The root: `tree_sha: "<commit>"`.
+- A top-level directory: `tree_sha: "<commit>:<directory>"`, with no `/`.
+- Any deeper directory: `tree_sha: "<sha>"`, where `<sha>` is that
+  directory's own entry (`type: "tree"`) in its parent directory's
+  listing.
+
+To list `a/b/c` at a commit, list `<commit>:a`, take the `sha` of the
+entry with `path: "b"` and `type: "tree"`, list that, take the `sha` of
+`c` from it, and list that. Reuse any listing this run already made at the
+same commit, intermediate ones included. If an entry on the way is
+missing, or is not a `tree`, the directory does not exist at that commit:
+treat it exactly like a listing that returns 404 (not a failed listing,
+and the recap does not name it). Where a step limits the number of
+listings, the listings that walk down to one directory count as one.
 
 ## Pending label
 
@@ -372,7 +394,8 @@ candidates (Step 0.3): every candidate's reads land in the same run.
 Before any full-file read:
 
 1. Find the file's `size` in a `lfx_one_github_git_get_tree` listing of
-   its directory at the same ref. Reuse a listing this run already read.
+   its directory at the same ref, listed as "Listing a nested directory"
+   says. Reuse a listing this run already read.
    Do not read an entry with `mode` `120000`: it is a symlink, its `size`
    is the length of the link text, and the contents API returns the
    target's contents instead. Record it as unread with reason `symlink`.
@@ -1315,8 +1338,10 @@ new one, and so a concurrent firing can see an in-progress session (Step
   `path`, `type`, `mode`, `size` and `sha`, without the contents):
   - The repo root, listed with `tree_sha: "<base_sha>"`: `CLAUDE.md`,
     `AGENTS.md` and `CONTRIBUTING.md`.
-  - `.claude/rules/`, listed with `tree_sha: "<base_sha>:.claude/rules"`:
-    every file in it.
+  - `.claude/rules/`: list `tree_sha: "<base_sha>:.claude"`, then list
+    the `sha` of its `rules` entry (see "Listing a nested directory"):
+    every file in it. No `.claude` or no `rules` entry means the
+    repository has no `.claude/rules/` files.
   - Each top-level directory that a changed file is under, listed once
     with `tree_sha: "<base_sha>:<directory>"`:
     `CLAUDE.md` and `AGENTS.md` (for example `frontend/CLAUDE.md` when the
@@ -1365,9 +1390,10 @@ new one, and so a concurrent firing can see an in-progress session (Step
   Documentation under "Review the dimensions") from the patches in scope:
   the read rule below depends on them.
   - **Listings.** Reuse the root listing and the top-level directory
-    listings made for the rule files at `base_sha`. Make at most 3 more
-    `lfx_one_github_git_get_tree` listings per run at `base_sha`, one
-    directory per call, in this order: declared directories and the
+    listings made for the rule files at `base_sha`. List at most 3 more
+    directories per run at `base_sha` with `lfx_one_github_git_get_tree`
+    (the listings that walk down to a nested one count as one; see
+    "Listing a nested directory"), in this order: declared directories and the
     parent directory of each declared file, unless a listing this run
     already made covers it (below), `docs/` or `doc/` when the root
     listing shows one, then the directory
@@ -1408,7 +1434,7 @@ new one, and so a concurrent firing can see an in-progress session (Step
 
     Ignore every other line. Declared files can be read as above, with
     the size from their parent directory's listing; declared directories
-    and those parent directories take the first of the 3 extra listings.
+    and those parent directories take the first of the 3 extra directories.
     A declared file whose size no listing gives is not read. Paths
     from every section are combined. For the reminder, the section in the
     rule file closest to the changed files wins for those files, and the
