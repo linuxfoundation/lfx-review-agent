@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: MIT
 #
 # Put the Guild comment filter on every `issue_comment created` trigger
-# for lfx-review-agent, then activate it (README.md, Triggers). With the
+# for the review controller, then activate it (README.md, Triggers). With the
 # filter, only a comment that starts with `@lfx-one re-review` starts a
 # session; other comments never wake the model.
 #
@@ -17,7 +17,9 @@
 # reviews on `@lfx-one re-review` comments.
 set -euo pipefail
 
-AGENT=linux-foundation~lfx-review-agent
+# Webhook triggers target the controller. The reviewer's old webhook
+# triggers are left alone: activating one would start a second review.
+AGENT=linux-foundation~lfx-review-controller
 # Keep in sync with RE_REVIEW_FILTER in scripts/onboard-repo.sh.
 RE_REVIEW_FILTER='^\s*@lfx-one\s+re-review\b'
 

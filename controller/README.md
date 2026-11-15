@@ -59,6 +59,12 @@ and check real GitHub delivery. Deactivate those triggers when finished.
 
 ## Pilot replacement and rollback
 
+Since 2026-11-14 every onboarded repository's webhook triggers target the
+controller: lf-dbt's are named `<old name> controller pilot`, the rest
+`<old name> controller`. `scripts/onboard-repo.sh` creates controller
+triggers for a new repository. Use the steps below to move a repository
+between the controller and the Native reviewer.
+
 `trigger update` cannot change agents; names are workspace-unique. Creation
 starts webhooks active; there is no inactive-create flag. Qualify full input
 handling before cutover.
@@ -74,7 +80,9 @@ handling before cutover.
    `pulls_get`, `pulls_list_reviews`, `issues_list_comments`,
    `issues_add_labels`, `issues_create_comment`, `issues_update_comment`,
    `pulls_update_review`.
-   Keep the Native policy and default-deny for unmatched operations. See the
+   Keep the Native policy and default-deny for unmatched operations. The
+   workspace uses only credentials scoped to it, so also grant the
+   credential to the controller (root README, Agent grants). See the
    root README's Credential policy commands. Verify access before cutover.
 3. Deactivate all active originals: `guild trigger deactivate "$OLD_ID"`.
    Verify with `trigger get`; retain originals and let running reviews finish.

@@ -6,7 +6,8 @@
 Guild.ai Native agent `linux-foundation~lfx-review-agent`: an automated PR
 reviewer for the LFX organization. It is a port of the
 `dd-pr-review-auto-cloud` Claude Code skill. The root is a Native prompt
-and manifest; `controller/` contains the optional TypeScript pre-check.
+and manifest; `controller/` contains the TypeScript pre-check that every
+webhook trigger runs before it calls the reviewer.
 
 ## Files
 

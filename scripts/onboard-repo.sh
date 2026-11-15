@@ -2,7 +2,8 @@
 # Copyright The Linux Foundation and each contributor to LFX.
 # SPDX-License-Identifier: MIT
 #
-# Create the webhook triggers that send a repository's events to
+# Create the webhook triggers that send a repository's events to the
+# review controller, which runs its pre-check and then calls
 # lfx-review-agent (onboarding step 4 in README.md). Skips triggers that
 # already exist, so it is safe to run again.
 #
@@ -25,7 +26,11 @@ TRIGGERS=(
   "issue_comment created re-review comment"
 )
 
-AGENT=linux-foundation~lfx-review-agent
+AGENT=linux-foundation~lfx-review-controller
+# Webhook triggers that call the reviewer directly. A repository event that
+# still has an active one is skipped, so it never gets two reviews; move it
+# with controller/README.md, "Pilot replacement and rollback".
+REVIEWER=linux-foundation~lfx-review-agent
 # The issue_comment trigger gets this Guild comment filter, so only a
 # comment that starts with `@lfx-one re-review` starts a session. Without
 # it, every comment starts a model run. Keep in sync with
@@ -60,7 +65,8 @@ while :; do
   page=$(guild --mode json trigger list --workspace "$WS" \
     --limit "$PAGE" --offset "$offset")
   existing=$(printf '%s\n%s' "$existing" "$page" | jq -c -s '.[0] + [.[1].items[]
-    | {repo: .service_config.repo, event: .event_type, action, agent: .agent.full_name}]')
+    | {repo: .service_config.repo, event: .event_type, action, agent: .agent.full_name,
+       active: (.deactivated_at == null)}]')
   [ "$(jq -r '.pagination.has_more' <<<"$page")" = true ] || break
   offset=$((offset + PAGE))
 done
@@ -68,7 +74,7 @@ done
 for repo in "${repos[@]}"; do
   for t in "${TRIGGERS[@]}"; do
     read -r event action suffix <<<"$t"
-    name="lfx-review-agent ${repo#*/} $suffix"
+    name="lfx-review-agent ${repo#*/} $suffix controller"
     found=$(jq -r --arg r "$repo" --arg e "$event" --arg a "$action" \
       --arg ag "$AGENT" \
       '[.[] | select(.repo == $r and .event == $e and .action == $a
@@ -76,6 +82,15 @@ for repo in "${repos[@]}"; do
       <<<"$existing")
     if [ "$found" != 0 ]; then
       echo "skip    $name (exists)"
+      continue
+    fi
+    direct=$(jq -r --arg r "$repo" --arg e "$event" --arg a "$action" \
+      --arg ag "$REVIEWER" \
+      '[.[] | select(.repo == $r and .event == $e and .action == $a
+        and .agent == $ag and .active)] | length' \
+      <<<"$existing")
+    if [ "$direct" != 0 ]; then
+      echo "skip    $name (an active $REVIEWER trigger handles this event)"
       continue
     fi
     config=$(jq -c -n --arg r "$repo" '{repo: $r}')
