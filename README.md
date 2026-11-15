@@ -61,7 +61,12 @@ It runs from GitHub webhook events delivered by Guild: `pull_request`
 (`opened`, `synchronize`, `ready_for_review`) and `issue_comment`
 (`created`, a PR comment that starts with `@lfx-one re-review`). A Guild
 comment filter on the `issue_comment` trigger drops every other comment
-before a session starts; see the Triggers section below.
+before a session starts; see the Triggers section below. Each webhook
+trigger starts the review controller (`linux-foundation~lfx-review-controller`,
+in `controller/`). It skips a closed, merged or draft PR, a running
+review, the five-minute cooldown or an already reviewed head without a
+model call. Otherwise it calls this agent and repairs escaped markers in
+the review it posted.
 
 An hourly Guild time trigger also starts a sweep. It reviews at most one
 PR an hour that is owed a review: a push dropped because a review was
@@ -165,7 +170,11 @@ if the new repository has code the agent must not review.
 
 ## Triggers
 
-For a controller pilot, see
+Every webhook trigger targets the review controller, which calls this
+agent. Only the hourly sweep calls this agent directly. Since 2026-11-14
+every onboarded repository runs through the controller; the triggers that
+called this agent directly are deactivated, not deleted, and must stay off.
+To move a repository between the two, see
 [rollout and rollback](controller/README.md#pilot-replacement-and-rollback).
 
 Webhook events reach the agent through the Guild GitHub App
@@ -188,16 +197,19 @@ must be unique within the workspace.
 
 | Event | Action | Trigger name | Starts |
 | --- | --- | --- | --- |
-| `pull_request` | `opened` | `lfx-review-agent <repo> opened` | the initial review |
-| `pull_request` | `synchronize` | `lfx-review-agent <repo> synchronize` | a follow-up review after a push |
-| `pull_request` | `ready_for_review` | `lfx-review-agent <repo> ready_for_review` | the review of a PR that was a draft |
-| `issue_comment` | `created` | `lfx-review-agent <repo> re-review comment` | a review on a comment that starts with `@lfx-one re-review` (comment filter below) |
+| `pull_request` | `opened` | `lfx-review-agent <repo> opened controller` | the initial review |
+| `pull_request` | `synchronize` | `lfx-review-agent <repo> synchronize controller` | a follow-up review after a push |
+| `pull_request` | `ready_for_review` | `lfx-review-agent <repo> ready_for_review controller` | the review of a PR that was a draft |
+| `issue_comment` | `created` | `lfx-review-agent <repo> re-review comment controller` | a review on a comment that starts with `@lfx-one re-review` (comment filter below) |
 | time, hourly at :17 | | `lfx-review-agent sweep` (one per workspace) | the sweep (`scripts/sweep-trigger.sh`) |
 
 `scripts/onboard-repo.sh` creates them. It takes one or more repository
 names, checks them all before creating anything, and skips any trigger
-that already exists for this agent, matched on repository, event, action
-and agent, so it is safe to run again. It needs `jq`.
+that already exists for the controller, matched on repository, event,
+action and agent, so it is safe to run again. It also skips an event that
+still has an active trigger calling this agent directly, so no event gets
+two reviews. It needs `jq`. lf-dbt's triggers end in `controller pilot`
+instead; they predate the rollout.
 
 ```bash
 WS=<workspace-id> scripts/onboard-repo.sh lfx-v2-example-service lfx-v2-other-service
@@ -332,10 +344,51 @@ path broke Guild's operation generation (1.0.6), so 1.0.7 keeps the
 `{name}` parameter.
 
 `--workspaces` takes a UUID or `<owner>~<name>`, not a bare workspace name.
+The controller has its own two `ALLOW` policies on the same credential;
+`controller/README.md` lists their operations. The credential carries seven
+policies in all: five for this agent and two for the controller.
+
 If the credential is deleted and reconnected, its policies are gone and this
 step must be repeated for the new credential ID. A session that cannot
 resolve the credential stops at its first call with `401 Unauthorized:
 Integration credentials not configured for lfx-one-github`.
+
+### Agent grants
+
+The workspace has **Use only credentials scoped to this workspace** turned
+on (workspace Credentials page), so agents there cannot use the
+organization's shared credentials. The org-owned `lfx-one-github`
+credential reaches the agents only through a grant: on that page, under
+**Bind a credential to an agent in this workspace**, choose **Grant** for
+`lfx-review-agent` and for `lfx-review-controller`, and grant
+`linux-foundation~lfx-one-github` under **Granted to this agent**. Do not use
+**Dedicated to this agent**: it creates a new credential without the
+policies above.
+
+Runs use grants made by the user they run as, so make the grants from the
+maintainer's account. Deleting the credential deletes its grants. Without
+them, every run stops at its first GitHub call with `401 Unauthorized:
+Integration credentials for linux-foundation~lfx-one-github are not
+available in this workspace`. `guild integration version test --account`
+does not check grants, so it passes either way; check a real session after
+any credential change.
+
+### Replacing the token
+
+The fine-grained token expires; its settings page shows the date. Replace
+it before then. GitHub shows a new value only once and disables the old
+one immediately, so the new value must reach Guild right away. The CLI cannot
+change the token on an existing credential, so a replacement is:
+
+1. Delete the old credential (`guild credentials delete <id>`), after
+   recording its policies with `guild credentials policy list <id>`.
+2. Connect the new token with `guild integration connect
+   linux-foundation~lfx-one-github --owner linux-foundation`. Leave out
+   `--token` so the token is read from a hidden prompt.
+3. Recreate the seven policies on the new credential ID, then delete its
+   allow-all policy.
+4. Grant the new credential to both agents (Agent grants above).
+5. Check that the next session reads GitHub.
 
 ## Reviewer identity
 
