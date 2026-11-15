@@ -17,7 +17,7 @@ webhook trigger runs before it calls the reviewer.
 | `guild.yaml` | Guild manifest: the `lfx-one-github` integration and its 21 tools. |
 | `README.md` | Setup: onboarding steps, workspace variables, triggers, credential policy, test checklist. |
 | `scripts/onboard-repo.sh` | Creates a repository's webhook triggers (onboarding step 4). |
-| `scripts/sweep-trigger.sh` | Sets the hourly sweep trigger's repository list from the webhook triggers. |
+| `scripts/sweep-trigger.sh` | Sets the sweep trigger's repository list and schedule from the webhook triggers. |
 | `scripts/re-review-trigger.sh` | Adds the `@lfx-one re-review` comment filter to existing re-review triggers and activates them. |
 | `controller/` | TypeScript pre-check; run `npm test` in that directory. |
 | `scripts/test-sweep-trigger.py` | Offline sweep test; run with `python3`. |

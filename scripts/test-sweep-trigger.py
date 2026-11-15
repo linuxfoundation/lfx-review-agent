@@ -42,4 +42,16 @@ with tempfile.TemporaryDirectory() as directory:
     subprocess.run(["bash", str(Path(__file__).with_name("sweep-trigger.sh")), "--apply"], env=env, check=True)
     args = (tmp / "calls").read_bytes().decode().rstrip("\0").split("\0")
     assert json.loads(args[args.index("--input") + 1])["repos"] == ["linuxfoundation/pilot"]
+    assert args[args.index("--minutes-of-hour") + 1] == "2,17,32,47"
+    sweep = {"type": "time", "id": "sweep-id", "name": "lfx-review-agent sweep",
+             "deactivated_at": None, "agent": {"full_name": native}}
+    (tmp / "fixture").write_text(json.dumps({"items": [trigger("pilot", controller), sweep],
+                                             "pagination": {"has_more": False}}))
+    subprocess.run(["bash", str(Path(__file__).with_name("sweep-trigger.sh")), "--apply"], env=env, check=True)
+    args = (tmp / "calls").read_bytes().decode().rstrip("\0").split("\0")
+    assert args[:3] == ["trigger", "update", "sweep-id"]
+    assert args[args.index("--frequency") + 1] == "HOURLY"
+    assert args[args.index("--minutes-of-hour") + 1] == "2,17,32,47"
+    assert json.loads(args[args.index("--input") + 1])["repos"] == ["linuxfoundation/pilot"]
 print("PASS: mixed rollout preserves the repository union and Native sweep target")
+print("PASS: an existing sweep trigger gets the repository list and the 15-minute schedule")

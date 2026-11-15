@@ -2,7 +2,8 @@
 # Copyright The Linux Foundation and each contributor to LFX.
 # SPDX-License-Identifier: MIT
 #
-# Set the hourly sweep trigger's repository list (README.md, Triggers).
+# Set the sweep trigger's repository list and schedule (README.md,
+# Triggers).
 # The list is built from the workspace's active `pull_request synchronize`
 # triggers for the Native reviewer, controller and optional REVIEW_AGENT.
 # Onboarding is the source of truth. Rerun it after onboarding a repository.
@@ -14,7 +15,7 @@
 #
 # An existing trigger keeps its active or inactive state; change that with
 # `guild trigger activate|deactivate`. A new trigger starts active and runs
-# at minute 17 of every hour, which starts live reviews. With no
+# at the MINUTES below, which starts live reviews. With no
 # synchronize trigger left, --apply deactivates the sweep.
 # Never write the repository list to a file in this repository.
 set -euo pipefail
@@ -23,7 +24,10 @@ AGENT=linux-foundation~lfx-review-agent
 CONTROLLER=linux-foundation~lfx-review-controller
 SOURCE_AGENT=${REVIEW_AGENT:-$AGENT}
 NAME="lfx-review-agent sweep"
-MINUTE=17
+# Four runs an hour. Each run reviews at most one PR (PROMPT.md, Step 0.3).
+# Runs can overlap; gate B (PROMPT.md, Step 1.5) stops a second review
+# of the same PR.
+MINUTES=2,17,32,47
 
 : "${WS:?set WS to the Guild workspace ID}"
 apply=false
@@ -80,17 +84,18 @@ fi
 
 echo "repos: $count"
 if [ -n "$ids" ]; then
-  echo "update  $NAME ($ids)"
-  $apply && guild trigger update "$ids" --input "$input" >/dev/null
+  echo "update  $NAME ($ids), hourly at minutes $MINUTES"
+  $apply && guild trigger update "$ids" --input "$input" \
+    --frequency HOURLY --minutes-of-hour "$MINUTES" >/dev/null
 else
-  echo "create  $NAME (hourly at :$MINUTE)"
+  echo "create  $NAME (hourly at minutes $MINUTES)"
   $apply && guild trigger create \
     --workspace "$WS" \
     --type time \
     --agent "$AGENT" \
     --name "$NAME" \
     --frequency HOURLY \
-    --minutes-of-hour "$MINUTE" \
+    --minutes-of-hour "$MINUTES" \
     --input "$input" >/dev/null
 fi
 $apply || echo "dry run; rerun with --apply to change the trigger"
