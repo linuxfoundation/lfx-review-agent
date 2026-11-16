@@ -133,13 +133,16 @@ payload Guild delivers, or are too stale to trust.
 
 ## Workspace variables
 
-The prompt reads two workspace variables. Guild only checks at build time
-that the references are well formed, so set both before enabling triggers.
+The prompt reads three workspace variables. Guild only checks at build time
+that the references are well formed, so set all three before publishing the
+agent and before enabling triggers. Set one with `guild workspace variable
+set KEY=VALUE --workspace <workspace-id>`.
 
 | Variable | Value |
 | --- | --- |
 | `REVIEWER_LOGIN` | The GitHub login the credential posts as: `lfx-one`. |
 | `REVIEW_AGENT_HELP_URL` | `https://github.com/linuxfoundation/lfx-review-agent/issues`. Used in the cap notice, the start comment, and the summary footer. |
+| `REVIEW_ONLY_REPOS` | Comma-separated `owner/repo` entries the agent reviews but never approves, or `none`. A bare repository name means `linuxfoundation/<name>`. See Review-only repositories. |
 
 If `REVIEWER_LOGIN` does not match the account that posts, the agent stops
 after its first comment and reports a configuration fault (Step 3.5,
@@ -162,7 +165,9 @@ PR event, so do it last.
    approve the change. See Reviewer identity.
 3. **CODEOWNERS.** Add `lfx-one` to the team the repository's CODEOWNERS
    or branch protection accepts, with write access. Without it, the
-   agent's approvals are advisory.
+   agent's approvals are advisory. For a repository that should get
+   reviews but no approvals, also add it to `REVIEW_ONLY_REPOS`, and still
+   give `lfx-one` write or triage access (see Review-only repositories).
 4. **Triggers.** Run `scripts/onboard-repo.sh` for the repository, then
    `scripts/sweep-trigger.sh --apply` so the sweep covers it. The
    sweep checks up to 30 repositories for PRs that never got a review;
@@ -434,6 +439,30 @@ Step 5a.1 approves only when the PR's `author_association` is `MEMBER` or
 `OWNER`. A member whose org membership is private can show as
 `CONTRIBUTOR`. That fails safe: the review still runs, but approval is
 withheld until a maintainer approves. Making membership public fixes it.
+
+## Review-only repositories
+
+A repository listed in the `REVIEW_ONLY_REPOS` workspace variable gets the
+full review, inline comments and follow-ups, but never an approval. A review
+that would approve is posted as a comment marked approval-withheld, with the
+decision "Review passed, human approval required" and a note that the
+repository is set to review only. A review with blocking findings still
+requests changes. The list lives in the workspace, not in this repository,
+so private repository names stay private; changing it needs no new agent
+version.
+
+To add a repository, append it to the variable before creating its
+triggers. Otherwise its first reviews can approve. Adding an onboarded
+repository leaves the agent's earlier approvals in place, since a later
+comment review does not replace them; dismiss those by hand.
+
+While `lfx-one` has write access to the repository, its "changes
+requested" reviews block merging under branch protection, as on other
+repositories. Since the agent never approves here, a later passing review
+can't clear one; that review adds a note asking a maintainer to dismiss
+the earlier one after checking the fixes. With the triage role instead,
+the agent can still review, comment and label, but none of its reviews
+count toward branch protection.
 
 ## Documentation check
 
@@ -727,6 +756,14 @@ Run these on a throwaway PR before enabling triggers on a real repository.
     older than 7 days and has no review from the agent: confirm the
     controller session reports a skip with no model call and nothing is
     posted, and that `@lfx-one re-review` on it starts review 1.
+49. Review-only: with a test repository in `REVIEW_ONLY_REPOS`, open a PR
+    that would pass. Confirm a `COMMENTED` review with the
+    approval-withheld marker, the decision "Review passed, human approval
+    required" and the review-only note, and no `APPROVED` review. Push a
+    commit with a blocking issue and confirm `REQUEST_CHANGES`. Push a
+    fix and confirm the passing `COMMENT` adds the note asking a
+    maintainer to dismiss the earlier review. Remove the repository from
+    the variable, push another commit, and confirm an approval.
 
 ## Ideas
 

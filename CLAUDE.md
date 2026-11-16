@@ -36,8 +36,8 @@ through `.git/info/exclude`. Never commit them.
 ## Editing PROMPT.md
 
 - `{{env.KEY}}` is a Guild workspace variable (`REVIEWER_LOGIN`,
-  `REVIEW_AGENT_HELP_URL`). The build validates these references. Do not
-  write other `{{ }}` text in the prompt.
+  `REVIEW_AGENT_HELP_URL`, `REVIEW_ONLY_REPOS`). The build validates these
+  references. Do not write other `{{ }}` text in the prompt.
 - Tool names are the `lfx_one_github_*` names in `guild.yaml`. Adding a tool
   to the prompt means adding it to `guild.yaml` and to the README credential
   policy.
