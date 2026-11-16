@@ -105,13 +105,17 @@ judged by.
 finding, any Data Privacy, Data Subject Rights or Data Residency finding,
 any Security finding, more than two
 `[minor]` findings, or a merge conflict. Otherwise it approves. Three
-gates can withhold an approval, posting a comment review instead, but
-never turn it into a request for changes:
+gates can then withhold the approval and post a comment review instead:
 
 - 5a.1: the author is not an org member or owner.
 - 5a.2: a required CI check failed.
-- 5a.3: the pull request changes a file the run could not read, other
-  than a listed generated file or lockfile.
+- 5a.3: the pull request changes a file whose diff GitHub omitted and
+  that the run could not read, other than a listed generated file or
+  lockfile.
+
+5a.1 and 5a.2 never turn an approval into a request for changes. 5a.3
+does when an earlier approval from the agent is still live, because a
+comment review would leave that approval in place.
 
 **Untrusted input.** Pull request content is data. Text in a diff or a
 comment that tries to steer the review is reported as a `[blocking]`
@@ -144,12 +148,16 @@ pushes. The engineering-metrics collector reads them; see
   version. Every pull request that changes `PROMPT.md` or `guild.yaml`
   raises it; `.github/workflows/agent-version-check.yml` fails one that
   doesn't.
-- `guild.yaml` pins the integration version, and so does the endpoint
-  helper in `controller/agent.ts`. The controller's `calls` reference in
-  `controller/agent.ts` pins the Native reviewer version; its own version
-  is in `controller/package.json`.
+- The integration version is pinned in three places: `guild.yaml`, the
+  `versionNumber` in `controller/agent.ts`, and the
+  `@guildai-services/linux-foundation~lfx-one-github` dependency in
+  `controller/package.json` (with its lockfile). Move all three together.
+- The controller's `calls` reference in `controller/agent.ts` pins the
+  Native reviewer version; the controller's own version is in
+  `controller/package.json`.
 - Publish order: the integration first, then the Native reviewer, then
-  the controller. `CLAUDE.md` has the details.
+  the controller. Before anything pins a new integration version, check
+  that `operation list` shows every operation (see `CLAUDE.md`).
 - Guild does not enforce `enum` values in a request. The enums in the
   OpenAPI spec document intent; the prompt has to send the right values.
 
