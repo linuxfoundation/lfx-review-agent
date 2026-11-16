@@ -131,7 +131,9 @@ async function run(
     const result = await task.tools.reviewer({ text: input.text });
     return { type: "text" as const, text: `Fallback: controller read failed (${reason}). ${result.text}` };
   }
-  const scope = historyScope(details.kind, pr.head.sha, reviews, login);
+  const scope = historyScope(details.kind, pr.head.sha, reviews, login, {
+    createdAt: pr.created_at, time: details.time, comments,
+  });
   const gate = eligibility(details.kind, details.time, pr, comments, reviews, login);
   if (gate.action === "running" || gate.action === "cooldown") {
     const issue = { owner: params.owner, repo: params.repo, issue_number: details.number };
@@ -201,6 +203,7 @@ async function run(
       title: pr.title,
       body: pr.body,
       html_url: pr.html_url,
+      created_at: pr.created_at,
       user: { login: pr.user.login },
       author_association: pr.author_association,
       head: { sha: pr.head.sha, ref: pr.head.ref },

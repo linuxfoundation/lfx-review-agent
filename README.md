@@ -51,8 +51,10 @@ why it won't review the PR and skips every later push on it. If it had
 approved an earlier commit, it replaces that approval with a "changes
 requested" review so the PR can't merge without a human. To ask for a fresh
 check, a maintainer deletes that note and then pushes a commit, or
-converts the PR to a draft and marks it ready again. The agent reviews
-the PR only if it no longer changes an excluded area.
+converts the PR to a draft and marks it ready again (needed when the agent
+never reviewed a PR opened more than 7 days ago, since a push then starts
+nothing). The agent reviews the PR only if it no longer changes an excluded
+area.
 
 ## When it runs
 
@@ -63,9 +65,10 @@ comment filter on the `issue_comment` trigger drops every other comment
 before a session starts; see the Triggers section below. Each webhook
 trigger starts the review controller (`linux-foundation~lfx-review-controller`,
 in `controller/`). It skips a closed, merged or draft PR, a running
-review, the five-minute cooldown or an already reviewed head without a
-model call. Otherwise it calls this agent and repairs escaped markers in
-the review it posted.
+review, the five-minute cooldown, an already reviewed head, or a push to a
+never-reviewed PR opened more than 7 days ago without a model call.
+Otherwise it calls this agent and repairs escaped markers in the review it
+posted.
 
 A Guild time trigger also starts a sweep four times an hour, at minutes 2, 17,
 32 and 47. Each sweep reviews at most one PR that is owed a review: a push
@@ -200,7 +203,7 @@ must be unique within the workspace.
 | Event | Action | Trigger name | Starts |
 | --- | --- | --- | --- |
 | `pull_request` | `opened` | `lfx-review-agent <repo> opened controller` | the initial review |
-| `pull_request` | `synchronize` | `lfx-review-agent <repo> synchronize controller` | a follow-up review after a push, or the initial review when the PR never got one |
+| `pull_request` | `synchronize` | `lfx-review-agent <repo> synchronize controller` | a follow-up review after a push, or the initial review when a PR opened in the last 7 days never got one |
 | `pull_request` | `ready_for_review` | `lfx-review-agent <repo> ready_for_review controller` | the review of a PR that was a draft |
 | `issue_comment` | `created` | `lfx-review-agent <repo> re-review comment controller` | a review on a comment that starts with `@lfx-one re-review` (comment filter below) |
 | time, hourly at minutes 2, 17, 32, 47 | | `lfx-review-agent sweep` (one per workspace) | the sweep (`scripts/sweep-trigger.sh`) |
@@ -720,7 +723,10 @@ Run these on a throwaway PR before enabling triggers on a real repository.
     Confirm the push starts review 1 as an initial review of the whole
     PR. Then open another PR and push within a few seconds of opening it:
     confirm exactly one review 1 finishes, and the other run stops at
-    gate B or is superseded in Step 3.5.
+    gate B or is superseded in Step 3.5. Then push to an open PR that is
+    older than 7 days and has no review from the agent: confirm the
+    controller session reports a skip with no model call and nothing is
+    posted, and that `@lfx-one re-review` on it starts review 1.
 
 ## Ideas
 
