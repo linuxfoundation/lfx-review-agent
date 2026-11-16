@@ -16,6 +16,7 @@ webhook trigger runs before it calls the reviewer.
 | `PROMPT.md` | The Native reviewer's instructions and review policy. |
 | `guild.yaml` | Guild manifest: the `lfx-one-github` integration and its 21 tools. |
 | `README.md` | Setup: onboarding steps, workspace variables, triggers, credential policy, test checklist. |
+| `docs/index.md` | Architecture overview (the TechDocs home page). Update it when the run flow, gates, verdict rules or file layout change. |
 | `scripts/onboard-repo.sh` | Creates a repository's webhook triggers (onboarding step 4). |
 | `scripts/sweep-trigger.sh` | Sets the sweep trigger's repository list and schedule from the webhook triggers. |
 | `scripts/re-review-trigger.sh` | Adds the `@lfx-one re-review` comment filter to existing re-review triggers and activates them. |
