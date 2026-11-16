@@ -2025,11 +2025,14 @@ This pull request passed automated review. This repository is set to review only
 **Earlier change request.** A `COMMENT` review does not clear this
 agent's earlier `CHANGES_REQUESTED` review on GitHub, and only a later
 `APPROVE` would. So whenever this run submits the approval-withheld
-`COMMENT` (from 5a.1, 5a.2 or 5a.3), check the review list from Step 2:
-when the most recent own review that carries
-`<!-- lfx-review-agent:review -->` and is `APPROVED` or
-`CHANGES_REQUESTED` is `CHANGES_REQUESTED`, also add this note after the
-other notes, in the review body and the Step 6 recap:
+`COMMENT` (from 5a.1, 5a.2 or 5a.3), check the review list from Step 2
+with the selection the Step 1.5 approval guard uses: own reviews that
+carry `<!-- lfx-review-agent:review -->`, `<!-- lfx-review-agent:excluded`
+(the Step 3.2 revoking review) or `<!-- lfx-review-agent:too-large -->`
+(the gate A1 revoking review), with `state` `APPROVED` or
+`CHANGES_REQUESTED`. When the most recent of them is `CHANGES_REQUESTED`,
+also add this note after the other notes, in the review body and the
+Step 6 recap:
 
 ```text
 My earlier review requested changes, and GitHub still counts it until it's dismissed. After checking the fixes, a maintainer should dismiss that review.
