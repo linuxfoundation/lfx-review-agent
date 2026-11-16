@@ -277,10 +277,9 @@ export function historyScope(kind: string, head: string, history: Review[], revi
     return terminal.length
       ? { mode: "skip", reason: "already reviewed" }
       : { mode: "full" };
-  if (!latest)
-    return kind === "synchronize"
-      ? { mode: "undecided", reason: "check first-review recovery" }
-      : { mode: "full" };
+  // No terminal, dismissed or partial own review: every event, a push
+  // included, starts the first review (PROMPT.md Step 3).
+  if (!latest) return { mode: "full" };
   if (kind === "re-review" && (!latest.commit_id || latest.commit_id === head))
     return { mode: "full" };
   if (latest.commit_id === head)

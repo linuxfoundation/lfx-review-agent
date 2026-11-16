@@ -19,8 +19,8 @@ ownership rereads, author verification and final HEAD/base recheck still run.
 - `full`: a whole-PR review may be due; apply Step 3 first.
 - `delta`: `from` and `to` identify the candidate commit range; apply Step 3.
 - `undecided`: determine eligibility and scope from the existing rules,
-  including first-review recovery and missing prior-SHA rules. This does not
-  mean whole-PR fallback.
+  including the missing prior-SHA rules. This does not mean whole-PR
+  fallback.
 - `skip`: verify the skip against Step 3; it never authorizes a review.
 
 Prepared input never supplies author verification: Step 5a.1 makes its own
@@ -117,8 +117,8 @@ triggers, and by an hourly Guild time trigger (see Step 0 for how each one
 is recognized):
 
 - **`pull_request` / `opened`** → run the initial review.
-- **`pull_request` / `synchronize`** (commits pushed) → run a follow-up
-  review if one is due.
+- **`pull_request` / `synchronize`** (commits pushed) → run the initial
+  review if none ran yet, or a follow-up review if one is due.
 - **`pull_request` / `ready_for_review`** (a draft marked ready) → run the
   initial review if none ran yet, or a follow-up of the commits pushed
   while the PR was a draft.
@@ -147,8 +147,7 @@ reviewing. The notice is permanent for the pull request: Step 1.5 gate A0
 stops every later run on it, including pushes and `re-review` requests.
 To ask for a fresh check, a maintainer deletes the notice and then
 comments `@lfx-one re-review`. A push, or converting the PR to a draft and
-marking it ready again, also works, but a push starts nothing when the PR
-had no earlier review (see Step 3). Step 3.2 then reviews the PR only
+marking it ready again, also works. Step 3.2 then reviews the PR only
 if its diff no longer matches a rule, and otherwise posts the notice
 again. An excluded change
 always gets a human review.
@@ -282,7 +281,7 @@ not retryable.
 
 ## Agent version
 
-This prompt is review agent version **`0.1.30`**. Step 3.5 shows it in the
+This prompt is review agent version **`0.1.31`**. Step 3.5 shows it in the
 start comment so readers can tell which version ran a review. Use this
 value exactly; it is not read from any tool or from the webhook payload.
 
@@ -1041,24 +1040,14 @@ From that filtered list:
 ### If the event is `synchronize`
 
 - **No terminal review exists yet**:
-  - If there is also no dismissed or partial own review, **and** either
-    `abandoned_starts` is non-empty or the PR has an own `abandoned`
-    comment (a Step 3.5 that closed out a start and died before posting
-    its replacement, or a Step 5c submit that kept failing) → the first
-    review was started and never finished (the run crashed, hung, or
-    could not submit). Proceed to Step 3.2 as an **initial review**. This
-    recovers a first review that the `opened` run lost.
-  - If there is also no dismissed or partial own review, **and** the PR
-    has an own `too-large-notice` → gate A1 declined an earlier run, and
-    this run passed it, so the PR now fits. Proceed to Step 3.2 as an
-    **initial review**, as the notice promised.
-  - If there is also no dismissed or partial own review and there is
-    no abandoned start, `abandoned` comment or `too-large-notice` → stop.
-    There is nothing to follow up on; this PR is still waiting on its
-    first review, which only the `opened` or `ready_for_review` event or
-    a `re-review` comment initiates. (If `opened` never fired, the author can comment
-    `@lfx-one re-review`, or convert the PR to a draft and mark it ready
-    again, which fires `ready_for_review`.)
+  - If there is also no dismissed or partial own review → proceed to
+    Step 3.2 as an **initial review**. The PR never got a first review:
+    its `opened` event was dropped (for example while triggers were off),
+    its first review started and never finished (the run crashed, hung,
+    or could not submit), or gate A1 declined it as too large and it now
+    fits. A first review still running stopped this run at gate B, and two
+    runs that both start review 1 are settled by the Step 3.5 ownership
+    check.
   - If there *is* a dismissed or partial own review: this is a follow-up,
     not a missing first review. There is no live verdict, but the first
     pass already ran. A partial review means the first review ended

@@ -164,8 +164,9 @@ test("other tools using the same account do not count as own reviews", () => {
     "skip",
   );
 });
-test("missing first review delegates recovery instead of skipping", () => {
-  assert.equal(historyScope("synchronize", "a", []).mode, "undecided");
+test("a push with no own review starts a first review", () => {
+  for (const kind of ["opened", "synchronize", "ready_for_review", "re-review"])
+    assert.deepEqual(historyScope(kind, "a", []), { mode: "full" }, kind);
 });
 test("HTML-encoded own markers count as markers; other logins still do not", () => {
   const encode = (s) => s.replaceAll("<", "&lt;").replaceAll(">", "&gt;");
@@ -175,7 +176,7 @@ test("HTML-encoded own markers count as markers; other logins still do not", () 
   });
   assert.equal(
     historyScope("synchronize", "b", [marked("CHANGES_REQUESTED", "a", { body: review, user: { login: "other" } })]).mode,
-    "undecided",
+    "full",
   );
   const time = "2026-11-04T01:00:00Z";
   const start = encode("<!-- lfx-review-agent:session review=2 started=2026-11-04T00:58:00Z -->");
@@ -219,7 +220,7 @@ test("HTML-encoded own markers count as markers; other logins still do not", () 
   }
   assert.equal(
     historyScope("synchronize", "b", [marked("CHANGES_REQUESTED", "a", { body: "`&lt;!-- lfx-review-agent:review --&gt;`" })]).mode,
-    "undecided",
+    "full",
   );
 });
 test("safe skips preserve cap, recent-comment, in-progress and exclusion side effects", () => {
@@ -288,7 +289,7 @@ test("finding markers do not change own-review classification", () => {
   assert.equal(historyScope("opened", "b", [commented]).mode, "full");
   // Without the review marker, finding lines alone never make an own review.
   const unmarked = marked("CHANGES_REQUESTED", "a", { body: findingLines.join("\n") });
-  assert.equal(historyScope("synchronize", "b", [unmarked]).mode, "undecided");
+  assert.equal(historyScope("synchronize", "b", [unmarked]).mode, "full");
   // Finding lines in a conversation comment are not a session or notice.
   assert.equal(commentClass({ user: { login }, body: findingLines.join("\n") }), "other");
 });

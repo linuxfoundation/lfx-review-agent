@@ -51,8 +51,7 @@ why it won't review the PR and skips every later push on it. If it had
 approved an earlier commit, it replaces that approval with a "changes
 requested" review so the PR can't merge without a human. To ask for a fresh
 check, a maintainer deletes that note and then pushes a commit, or
-converts the PR to a draft and marks it ready again (needed when the agent
-never reviewed the PR, since a push then starts nothing). The agent reviews
+converts the PR to a draft and marks it ready again. The agent reviews
 the PR only if it no longer changes an excluded area.
 
 ## When it runs
@@ -201,7 +200,7 @@ must be unique within the workspace.
 | Event | Action | Trigger name | Starts |
 | --- | --- | --- | --- |
 | `pull_request` | `opened` | `lfx-review-agent <repo> opened controller` | the initial review |
-| `pull_request` | `synchronize` | `lfx-review-agent <repo> synchronize controller` | a follow-up review after a push |
+| `pull_request` | `synchronize` | `lfx-review-agent <repo> synchronize controller` | a follow-up review after a push, or the initial review when the PR never got one |
 | `pull_request` | `ready_for_review` | `lfx-review-agent <repo> ready_for_review controller` | the review of a PR that was a draft |
 | `issue_comment` | `created` | `lfx-review-agent <repo> re-review comment controller` | a review on a comment that starts with `@lfx-one re-review` (comment filter below) |
 | time, hourly at minutes 2, 17, 32, 47 | | `lfx-review-agent sweep` (one per workspace) | the sweep (`scripts/sweep-trigger.sh`) |
@@ -716,6 +715,12 @@ Run these on a throwaway PR before enabling triggers on a real repository.
     Confirm the quote keeps the words without `<!--` and `-->`, and the
     regex check in `specs/004-finding-metadata/quickstart.md` finds no
     `r9-f9`.
+48. First review on a push: deactivate a test repository's `opened`
+    trigger, open a PR, then reactivate the trigger and push a commit.
+    Confirm the push starts review 1 as an initial review of the whole
+    PR. Then open another PR and push within a few seconds of opening it:
+    confirm exactly one review 1 finishes, and the other run stops at
+    gate B or is superseded in Step 3.5.
 
 ## Ideas
 

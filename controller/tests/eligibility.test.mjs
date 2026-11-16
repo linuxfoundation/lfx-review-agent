@@ -213,7 +213,7 @@ test("compiled history skip avoids reviewer dispatch without a running or cooldo
   assert.match(result.text, /head already reviewed/);
   assert.equal((await dispatch([], [review("CHANGES_REQUESTED", { commit_id: "a" })], input)).worker, 1);
 });
-test("compiled handoff preserves repository privacy and undecided scope", async () => {
+test("compiled handoff preserves repository privacy and a first push gets full scope", async () => {
   const input = { ...event, action: "synchronize" };
   const privacy = { ...pr, base: { ...pr.base, repo: { private: true } } };
   const result = await dispatch([], [], input, { lfx_one_github_pulls_get: async () => privacy });
@@ -222,7 +222,7 @@ test("compiled handoff preserves repository privacy and undecided scope", async 
   assert.deepEqual(Object.keys(envelope).sort(), ["event", "prepared"]);
   assert.deepEqual(envelope.event, input);
   assert.equal(envelope.prepared.pr.base.repo.private, true);
-  assert.equal(envelope.prepared.scope.mode, "undecided");
+  assert.equal(envelope.prepared.scope.mode, "full");
 });
 test("failed or malformed GitHub reads hand the original input to the reviewer", async () => {
   const input = { ...event, action: "synchronize" };
