@@ -266,7 +266,7 @@ paths:
     get:
       operationId: repos_get_content
       summary: Get a file's contents
-      description: Accept application/vnd.github.raw+json returns the file's text.
+      description: "GitHub returns raw text for Accept application/vnd.github.raw+json, but Guild operations send no headers, so through Guild the result is always JSON with base64 content."
       parameters:
         - $ref: "#/components/parameters/owner"
         - $ref: "#/components/parameters/repo"
@@ -283,7 +283,7 @@ paths:
           schema: { type: string, enum: ["application/vnd.github.raw+json"] }
       responses:
         "200":
-          description: JSON with base64 content, or the raw text
+          description: JSON with base64 content (raw text only when the Accept header is sent, which Guild never does)
           content:
             application/json:
               schema: { type: object }
@@ -293,7 +293,7 @@ paths:
     get:
       operationId: git_get_tree
       summary: List one directory's entries with sizes
-      description: tree_sha is "<commit>:<directory>", or a commit SHA for the root.
+      description: "tree_sha is a commit SHA for the root, \"<commit>:<directory>\" for a top-level directory, or a deeper directory's own tree SHA from its parent's listing. Guild refuses a / in the directory part."
       parameters:
         - $ref: "#/components/parameters/owner"
         - $ref: "#/components/parameters/repo"
