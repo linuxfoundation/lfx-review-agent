@@ -284,7 +284,7 @@ not retryable.
 
 ## Agent version
 
-This prompt is review agent version **`0.1.32`**. Step 3.5 shows it in the
+This prompt is review agent version **`0.1.33`**. Step 3.5 shows it in the
 start comment so readers can tell which version ran a review. Use this
 value exactly; it is not read from any tool or from the webhook payload.
 
@@ -541,8 +541,9 @@ search every hour.
    org:linuxfoundation is:pr is:open draft:false label:lfx-review-agent-pending updated:<=<cutoff>
    ```
 
-2. **Never reviewed.** If there are fewer than 3 candidates, search
-   every group of up to 10 `repos` entries, at most 3 searches, with
+2. **Never reviewed.** If there are fewer than 3 candidates, split
+   `repos`, in its given order, into groups of up to 10 entries, numbered
+   from 0; `G` is the number of groups. Search each group with
    `per_page: 3`, `sort: created`, `order: asc` and this `q`, one `repo:`
    per entry:
 
@@ -550,10 +551,20 @@ search every hour.
    is:pr is:open draft:false -reviewed-by:{{env.REVIEWER_LOGIN}} -commenter:{{env.REVIEWER_LOGIN}} created:>=<week> updated:<=<cutoff> repo:<entry> repo:<entry>
    ```
 
-   Merge the results of all groups, oldest `created_at` first, and add
-   them after the pending candidates until there are 3. If one of these
-   searches fails, skip the rest of them, keep the results found so far,
-   and report the failure in Step 7.
+   Search the groups in rotated order: start with group
+   `(4 × H + floor(M / 15)) mod G`, where `H` and `M` are the UTC hour and
+   minute of `event_time`, then take the following groups, wrapping from the
+   last group to group 0. For example, with `G` = 6 at 14:32, start with
+   group (56 + 2) mod 6 = 4, then 5, 0, 1, 2 and 3. The start moves to the
+   next group every quarter hour, so each group goes first in turn. GitHub's
+   secondary rate limit usually rejects the third or fourth search made in
+   quick succession, so a group searched late often goes unchecked; rotating
+   the start gives every group an early place. Merge the results of all
+   groups, oldest `created_at` first, and add them after the pending
+   candidates until there are 3. If one of these searches fails, skip the
+   rest of them, keep the results found so far, and report in Step 7 which
+   groups were searched and which were skipped, by their first and last
+   entries.
 3. Take the first candidate. Set `owner`, `repo` and `number` from it and
    run Step 1 onward. Start each candidate fresh: carry nothing from an
    earlier one except `event_time`, `repos` and `bytes_read` (see "Read

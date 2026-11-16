@@ -170,9 +170,10 @@ PR event, so do it last.
    give `lfx-one` write or triage access (see Review-only repositories).
 4. **Triggers.** Run `scripts/onboard-repo.sh` for the repository, then
    `scripts/sweep-trigger.sh --apply` so the sweep covers it. The
-   sweep checks up to 30 repositories for PRs that never got a review;
-   past that, raise the search limit in `PROMPT.md` Step 0.3. See
-   Triggers.
+   sweep searches for PRs that never got a review in groups of 10
+   repositories. The group it searches first moves to the next group
+   every quarter hour, so each group goes first in turn, however many
+   repositories there are (`PROMPT.md` Step 0.3). See Triggers.
 
 No agent, prompt, or credential policy change is needed. The review
 exclusions in `PROMPT.md` apply to every repository; add a rule there first
@@ -764,6 +765,12 @@ Run these on a throwaway PR before enabling triggers on a real repository.
     fix and confirm the passing `COMMENT` adds the note asking a
     maintainer to dismiss the earlier review. Remove the repository from
     the variable, push another commit, and confirm an approval.
+50. Sweep, search rotation: with more than 30 repositories in `repos`
+    (`G` groups), read the reports of `G` consecutive sweeps. Confirm
+    each starts its never-reviewed searches with the next group, using
+    `(4 × hour + floor(minute / 15)) mod G` (with `G` = 4: group 0 at
+    minute 2, group 1 at 17, and so on), that every group goes first
+    once, and that a rate-limited search names the skipped groups.
 
 ## Ideas
 
