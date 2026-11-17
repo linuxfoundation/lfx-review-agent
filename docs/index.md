@@ -75,9 +75,10 @@ pull request that is owed a review: a push that was dropped while a
 review ran, a review that did not finish, or a pull request opened in the
 last 7 days that never got one. The label `lfx-review-agent-pending`
 marks pull requests that may be owed a review. The search for pull
-requests that never got a review runs over groups of 10 repositories,
-starting with a different group every quarter hour, because GitHub's
-secondary rate limit usually rejects the third or fourth search in a row.
+requests that never got a review runs over groups of 10 repositories, at
+most 3 groups a run, starting with a different group every quarter hour,
+because GitHub's secondary rate limit usually rejects the third or fourth
+search in a row.
 
 ## The Native reviewer
 

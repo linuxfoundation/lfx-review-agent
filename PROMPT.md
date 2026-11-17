@@ -543,7 +543,7 @@ search every hour.
 
 2. **Never reviewed.** If there are fewer than 3 candidates, split
    `repos`, in its given order, into groups of up to 10 entries, numbered
-   from 0; `G` is the number of groups. Search each group with
+   from 0; `G` is the number of groups. Search at most 3 groups, each with
    `per_page: 3`, `sort: created`, `order: asc` and this `q`, one `repo:`
    per entry:
 
@@ -551,20 +551,28 @@ search every hour.
    is:pr is:open draft:false -reviewed-by:{{env.REVIEWER_LOGIN}} -commenter:{{env.REVIEWER_LOGIN}} created:>=<week> updated:<=<cutoff> repo:<entry> repo:<entry>
    ```
 
-   Search the groups in rotated order: start with group
-   `(4 × H + floor(M / 15)) mod G`, where `H` and `M` are the UTC hour and
-   minute of `event_time`, then take the following groups, wrapping from the
-   last group to group 0. For example, with `G` = 6 at 14:32, start with
-   group (56 + 2) mod 6 = 4, then 5, 0, 1, 2 and 3. The start moves to the
-   next group every quarter hour, so each group goes first in turn. GitHub's
-   secondary rate limit usually rejects the third or fourth search made in
-   quick succession, so a group searched late often goes unchecked; rotating
-   the start gives every group an early place. Merge the results of all
-   groups, oldest `created_at` first, and add them after the pending
+   Search the groups in rotated order. Let `D` be the day of the year of
+   `event_time` (1 for January 1) and `H` and `M` its UTC hour and minute,
+   and let `Q` = 96 × `D` + 4 × `H` + floor(`M` / 15), the quarter hours
+   since the year began. Start with group `Q mod G`, then take the
+   following groups, wrapping from the last group to group 0, and stop
+   after 3 searches. For example, with `G` = 7 at 2026-11-16 14:32 (`D` =
+   320), `Q` = 30720 + 56 + 2 = 30778, so search groups 6, 0 and 1. The
+   start moves to the next group every quarter hour, so each group goes
+   first in turn. GitHub's secondary rate limit usually rejects the third
+   or fourth search made in quick succession, so a group searched late
+   often goes unchecked; rotating the start gives every group an early
+   place, and the cap keeps the search results (which carry each pull
+   request's body) to at most 9 items. Merge the results of the groups
+   searched, oldest `created_at` first, and add them after the pending
    candidates until there are 3. If one of these searches fails, skip the
-   rest of them, keep the results found so far, and report in Step 7 which
-   groups were searched and which were skipped, by their first and last
-   entries.
+   rest of them and keep the results found so far.
+
+   Report the never-reviewed searches in Step 7 every time, in the planned
+   order, naming each group by its first and last entries: searched (with
+   its number of results), failed (with the error), or skipped. When there
+   were already 3 pending candidates, report `Never-reviewed searches: not
+   run (3 pending candidates)`.
 3. Take the first candidate. Set `owner`, `repo` and `number` from it and
    run Step 1 onward. Start each candidate fresh: carry nothing from an
    earlier one except `event_time`, `repos` and `bytes_read` (see "Read
@@ -2790,8 +2798,10 @@ attempt, report `Review not posted: GitHub server errors on submit`, give
 the number of attempts and the last error, link the PR and the
 closed-out session comment, and say whether the comment update succeeded.
 
-For a `sweep`, also list each candidate tried, why each one stopped, and
-whether its pending label was removed. Link any stalled notice it
+For a `sweep`, also give the never-reviewed search report from Step 0.3
+(start group `Q mod G`, then each planned group and its outcome), and
+list each candidate tried, why each one stopped, and whether its pending
+label was removed. Link any stalled notice it
 posted. A sweep with no candidate reports `Sweep: no pull request due`.
 Report every failed label call.
 
