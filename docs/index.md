@@ -45,8 +45,11 @@ flowchart LR
    that starts with `@lfx-one re-review` starts a run.
 3. The trigger starts the controller. It reads the pull request, its
    reviews and its comments, and skips a closed, merged or draft pull
-   request, a review still running, the five-minute cooldown, or a head
-   that was already reviewed. When it skips, it may add the pending label
+   request, a review still running, the five-minute cooldown, a head
+   that was already reviewed, or a push to a pull request that the agent
+   never reviewed and that was opened more than 7 days ago (unless the
+   agent started or declined its first review: the reviewer then
+   decides). When it skips, it may add the pending label
    or post one debounce notice. A `re-review` request on a closed, merged
    or draft pull request still goes to the reviewer, which answers it
    with a skip notice.
@@ -59,6 +62,12 @@ flowchart LR
    comment.
 6. The controller then repairs any HTML-escaped markers in the review
    that run posted.
+
+A push normally starts a follow-up review. When the pull request has no
+review from the agent yet and was opened in the last 7 days, the push
+starts the first review instead, which recovers a missed `opened` event.
+On an older pull request with no review, a `@lfx-one re-review` comment
+starts the first review.
 
 A Guild time trigger runs a sweep four times an hour. The sweep calls the
 Native reviewer directly, without the controller, and reviews at most one
@@ -79,7 +88,7 @@ marks pull requests that may be owed a review.
 | 1 | Reads pull request metadata and stops on a closed or draft pull request. |
 | 1.5 | Classifies its own earlier comments and applies the gates below. |
 | 2 | Derives the review cycle from its own earlier reviews. |
-| 3 | Decides between an initial review, a follow-up of the new commits, or no review. |
+| 3 | Decides between an initial review, a follow-up of the new commits, or no review. A push to a recent pull request with no review starts the initial review. |
 | 3.2 | Checks the "Review exclusions" table. |
 | 3.5 | Posts the start comment, which shows the agent version. |
 | 4 | Reads the diff, the commits and the repository's rule files, and reviews them. |

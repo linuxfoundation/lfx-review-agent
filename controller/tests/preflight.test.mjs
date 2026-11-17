@@ -164,8 +164,36 @@ test("other tools using the same account do not count as own reviews", () => {
     "skip",
   );
 });
-test("missing first review delegates recovery instead of skipping", () => {
+test("a push with no own review starts a first review only within the sweep's 7-day window", () => {
+  for (const kind of ["opened", "ready_for_review", "re-review"])
+    assert.deepEqual(historyScope(kind, "a", []), { mode: "full" }, kind);
+  const time = "2026-11-16T18:45:00Z";
+  const push = (createdAt, comments = [], at = time) =>
+    historyScope("synchronize", "a", [], login, { createdAt, time: at, comments }).mode;
+  // The window is by UTC date, like the sweep's `created:>=<week>`.
+  assert.equal(push("2026-11-14T20:26:24Z"), "full");
+  assert.equal(push("2026-11-09T00:00:00Z"), "full");
+  assert.equal(push("2026-11-08T23:59:59Z"), "skip");
+  assert.match(
+    historyScope("synchronize", "a", [], login, { createdAt: "2026-11-01T00:00:00Z", time, comments: [] }).reason,
+    /more than 7 days/,
+  );
+  // An older PR still recovers a first review this agent started or declined.
+  const own = (body) => ({ id: 5, body, updated_at: time, user: { login } });
+  const old = "2026-11-01T00:00:00Z";
+  assert.equal(push(old, [own("<!-- lfx-review-agent:session review=1 started=2026-11-15T00:00:00Z -->")]), "undecided");
+  assert.equal(push(old, [own("<!-- lfx-review-agent:abandoned review=1 started=2026-11-15T00:00:00Z -->")]), "undecided");
+  assert.equal(push(old, [own("<!-- lfx-review-agent:too-large -->\n@a too large")]), "undecided");
+  assert.equal(push(old, [own("&lt;!-- lfx-review-agent:too-large --&gt;")]), "undecided");
+  // Other accounts' markers and quoted markers are not evidence.
+  assert.equal(push(old, [{ ...own("<!-- lfx-review-agent:too-large -->"), user: { login: "other" } }]), "skip");
+  assert.equal(push(old, [own("`<!-- lfx-review-agent:too-large -->`")]), "skip");
+  assert.equal(push(old, [own("<!-- lfx-review-agent:debounce -->")]), "skip");
+  // Missing or unreadable dates leave the decision to the reviewer.
   assert.equal(historyScope("synchronize", "a", []).mode, "undecided");
+  assert.equal(push(undefined), "undecided");
+  assert.equal(push("not a date"), "undecided");
+  assert.equal(push(old, [], ""), "undecided");
 });
 test("HTML-encoded own markers count as markers; other logins still do not", () => {
   const encode = (s) => s.replaceAll("<", "&lt;").replaceAll(">", "&gt;");

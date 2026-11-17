@@ -213,16 +213,37 @@ test("compiled history skip avoids reviewer dispatch without a running or cooldo
   assert.match(result.text, /head already reviewed/);
   assert.equal((await dispatch([], [review("CHANGES_REQUESTED", { commit_id: "a" })], input)).worker, 1);
 });
-test("compiled handoff preserves repository privacy and undecided scope", async () => {
+test("compiled handoff preserves repository privacy and a recent first push gets full scope", async () => {
   const input = { ...event, action: "synchronize" };
-  const privacy = { ...pr, base: { ...pr.base, repo: { private: true } } };
+  const privacy = { ...pr, created_at: "2026-11-03T12:00:00Z", base: { ...pr.base, repo: { private: true } } };
   const result = await dispatch([], [], input, { lfx_one_github_pulls_get: async () => privacy });
   assert.equal(result.worker, 1);
   const envelope = JSON.parse(result.calls.find(([name]) => name === "reviewer")[1].text);
   assert.deepEqual(Object.keys(envelope).sort(), ["event", "prepared"]);
   assert.deepEqual(envelope.event, input);
   assert.equal(envelope.prepared.pr.base.repo.private, true);
+  assert.equal(envelope.prepared.pr.created_at, "2026-11-03T12:00:00Z");
+  assert.equal(envelope.prepared.scope.mode, "full");
+});
+test("a push to a never-reviewed PR older than 7 days skips without a model call", async () => {
+  const input = { ...event, action: "synchronize" };
+  const old = { ...pr, created_at: "2026-10-20T12:00:00Z" };
+  const skipped = await dispatch([], [], input, { lfx_one_github_pulls_get: async () => old });
+  assert.equal(skipped.worker, 0);
+  assert.match(skipped.text, /^Skipped: .*more than 7 days.*No model called\.$/);
+  // A first review this agent declined as too large is still recovered.
+  const declined = comment("<!-- lfx-review-agent:too-large -->\n@author too large", "2026-11-03T00:00:00Z");
+  const recovered = await dispatch([declined], [], input, { lfx_one_github_pulls_get: async () => old });
+  assert.equal(recovered.worker, 1);
+  const envelope = JSON.parse(recovered.calls.find(([name]) => name === "reviewer")[1].text);
   assert.equal(envelope.prepared.scope.mode, "undecided");
+  // An explicit request reviews an old PR as before.
+  const request = {
+    repository: event.repository, action: "created",
+    issue: { number: 15, pull_request: {}, user: { login: "author" } },
+    comment: { id: 9, body: "@lfx-one re-review", created_at: now, user: { login: "author" } },
+  };
+  assert.equal((await dispatch([], [], request, { lfx_one_github_pulls_get: async () => old })).worker, 1);
 });
 test("failed or malformed GitHub reads hand the original input to the reviewer", async () => {
   const input = { ...event, action: "synchronize" };

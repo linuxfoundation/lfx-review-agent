@@ -9,6 +9,7 @@ export const prMetadata = z.object({
   base: ref.extend({ repo: z.object({ private: z.boolean() }).optional() }), user,
   title: z.string().optional(), body: z.string().nullable().optional(),
   html_url: z.string().optional(), author_association: z.string().optional(),
+  created_at: z.string().optional(),
   mergeable: z.boolean().nullable().optional(), mergeable_state: z.string().optional(),
   additions: z.number().optional(), deletions: z.number().optional(),
   changed_files: z.number().optional(), review_comments: z.number().optional(),

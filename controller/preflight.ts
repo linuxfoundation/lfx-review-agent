@@ -59,6 +59,7 @@ const MAX_REVIEW_COMMENTS = 150;
 const MAX_REVIEWS = 10;
 const STALE_START_MS = 45 * 60000;
 const COOLDOWN_MS = 5 * 60000;
+const FIRST_REVIEW_WINDOW_DAYS = 7;
 
 // Text used for marker matching (PROMPT.md "Read encoded markers as markers").
 // Markdown code is removed first: this agent never writes a marker in code,
@@ -254,7 +255,33 @@ export function eventDetails(event: Event, reviewerLogin = login) {
   return { owner, repo, kind: "re-review", number: event.issue.number, time: c.created_at };
 }
 
-export function historyScope(kind: string, head: string, history: Review[], reviewerLogin = login) {
+type FirstPush = { createdAt?: string; time?: string; comments: Comment[] };
+
+// A push to a PR with no own review (PROMPT.md Step 3, `synchronize`)
+// starts the first review when the PR was created within the sweep's
+// never-reviewed window: on or after the UTC date 7 days before the event.
+// An older PR is skipped unless this agent already started or declined its
+// first review; that recovery, or dates that can't be read, is left to the
+// reviewer.
+function firstPushScope(firstPush: FirstPush | undefined, reviewerLogin: string) {
+  const created = Date.parse(firstPush?.createdAt ?? "");
+  const time = Date.parse(firstPush?.time ?? "");
+  if (!firstPush || !Number.isFinite(created) || !Number.isFinite(time))
+    return { mode: "undecided", reason: "check first-review window" };
+  const week = new Date(time - FIRST_REVIEW_WINDOW_DAYS * 86400000).toISOString().slice(0, 10);
+  if (new Date(created).toISOString().slice(0, 10) >= week) return { mode: "full" };
+  if (firstPush.comments.some((c) => c.user?.login === reviewerLogin &&
+      ["start", "abandoned", "too-large"].includes(commentClass(c))))
+    return { mode: "undecided", reason: "check first-review recovery" };
+  return {
+    mode: "skip",
+    reason: `no first review, and the PR was opened more than ${FIRST_REVIEW_WINDOW_DAYS} days ago`,
+  };
+}
+
+export function historyScope(
+  kind: string, head: string, history: Review[], reviewerLogin = login, firstPush?: FirstPush,
+) {
   const reviews = decodeOwn(history, reviewerLogin);
   const own = reviews.filter(
     (r) => r.user?.login === reviewerLogin && r.body?.includes(marker),
@@ -278,9 +305,7 @@ export function historyScope(kind: string, head: string, history: Review[], revi
       ? { mode: "skip", reason: "already reviewed" }
       : { mode: "full" };
   if (!latest)
-    return kind === "synchronize"
-      ? { mode: "undecided", reason: "check first-review recovery" }
-      : { mode: "full" };
+    return kind === "synchronize" ? firstPushScope(firstPush, reviewerLogin) : { mode: "full" };
   if (kind === "re-review" && (!latest.commit_id || latest.commit_id === head))
     return { mode: "full" };
   if (latest.commit_id === head)
