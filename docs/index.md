@@ -184,7 +184,7 @@ pushes. The engineering-metrics collector reads them; see
 | --- | --- |
 | `PROMPT.md` | Native reviewer: procedure, gates, verdict rules, markers, read budget, exclusions, finding topics. |
 | `guild.yaml` | Native reviewer manifest: the pinned integration version and the tools it may call. |
-| `integration/lfx-one-github.openapi.yaml` | The integration's GitHub operations. `pulls_update_review` is used only by the controller, so `guild.yaml` leaves it out. |
+| `integration/lfx-one-github.openapi.yaml` | The integration's GitHub operations. `pulls_update_review` and `issues_list_events` are used only by the controller, so `guild.yaml` leaves them out. |
 | `controller/agent.ts` | Controller flow: GitHub reads, decisions, reviewer call, marker repair. |
 | `controller/preflight.ts` | Event parsing, marker classification, review scope and eligibility. |
 | `controller/metadata.ts` | Schemas for the pull request, review and comment reads. |
