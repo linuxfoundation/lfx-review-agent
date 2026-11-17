@@ -2025,8 +2025,12 @@ This pull request passed automated review. This repository is set to review only
 **Earlier change request.** A `COMMENT` review does not clear this
 agent's earlier `CHANGES_REQUESTED` review on GitHub, and only a later
 `APPROVE` would. So whenever this run submits the approval-withheld
-`COMMENT` (from 5a.1, 5a.2 or 5a.3), check the review list from Step 2
-with the selection the Step 1.5 approval guard uses: own reviews that
+`COMMENT` (from 5a.1, 5a.2, 5a.3 or the 5c gate A1 revoke check), decide
+in Step 5c, just before submitting, whether to add the note below.
+Another run can post a revoking review while this one reviews, so use the
+Step 2 review list together with the reviews from 5c's tail read (the
+latest one, if 5c reads the reviews again before a submit retry). Apply
+the selection the Step 1.5 approval guard uses: own reviews that
 carry `<!-- lfx-review-agent:review -->`, `<!-- lfx-review-agent:excluded`
 (the Step 3.2 revoking review) or `<!-- lfx-review-agent:too-large -->`
 (the gate A1 revoking review), with `state` `APPROVED` or
