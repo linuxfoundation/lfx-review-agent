@@ -555,13 +555,14 @@ search every hour.
    `event_time` (1 for January 1) and `H` and `M` its UTC hour and minute,
    and let `Q` = 96 × `D` + 4 × `H` + floor(`M` / 15), the quarter hours
    since the year began. Start with group `Q mod G`, then take the
-   following groups, wrapping from the last group to group 0, and stop
-   after 3 searches. For example, with `G` = 7 at 2026-11-16 14:32 (`D` =
-   320), `Q` = 30720 + 56 + 2 = 30778, so search groups 6, 0 and 1. The
-   start moves to the next group every quarter hour, so each group goes
-   first in turn. GitHub's secondary rate limit usually rejects the third
-   or fourth search made in quick succession, so a group searched late
-   often goes unchecked; rotating the start gives every group an early
+   following groups, wrapping from the last group to group 0. Search each
+   group at most once a run, and stop after min(3, `G`) searches: with 1 or
+   2 groups, search each once. For example, with `G` = 7 at 2026-11-16
+   14:32 (`D` = 320), `Q` = 30720 + 56 + 2 = 30778, so search groups 6, 0
+   and 1. The start moves to the next group every quarter hour, so each
+   group goes first in turn. GitHub's secondary rate limit usually rejects
+   the third or fourth search made in quick succession, so a group searched
+   late often goes unchecked; rotating the start gives every group an early
    place, and the cap keeps the search results (which carry each pull
    request's body) to at most 9 items. Merge the results of the groups
    searched, oldest `created_at` first, and add them after the pending

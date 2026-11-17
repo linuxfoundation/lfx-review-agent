@@ -774,7 +774,7 @@ Run these on a throwaway PR before enabling triggers on a real repository.
     that each starts with the next group, `Q mod G` from `PROMPT.md` Step
     0.3 (with `G` = 4: group 0 at minute 2, group 1 at 17, and so on), that
     every group goes first once, and that no run searches more than 3
-    groups.
+    groups or any group twice.
 
 ## Ideas
 
