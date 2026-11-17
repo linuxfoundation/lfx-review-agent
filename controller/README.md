@@ -1,6 +1,6 @@
 # Review controller
 
-The root remains the Native reviewer. Publish it as 0.1.33 before
+The root remains the Native reviewer. Publish it as 0.1.34 before
 deploying the controller, which calls that Native version.
 Install both agents in the same workspace with `REVIEWER_LOGIN` configured.
 The reviewer's Guild model policy selects the model; neither agent pins it.
@@ -58,6 +58,37 @@ stays.
 - Updating a review sends a `pull_request_review` `edited` webhook. No
   trigger subscribes to it, so the repair starts no run.
 
+## Draft recovery
+
+A push to a pull request that never got a review starts its first review
+when the pull request was opened within the last 7 days (`PROMPT.md` Step
+3). A draft opened earlier and marked ready while its `ready_for_review`
+webhook was lost would miss that window, so for a push to a never-reviewed
+pull request opened more than 7 days ago, the controller reads its issue
+events (`issues_list_events`, integration 1.0.9) and takes the newest
+`ready_for_review` time. If that time is inside the window, the push gets
+the first review, and the reviewer receives the time as
+`prepared.ready_for_review_at`. Otherwise, or when the read fails, the
+controller skips without a model call: the reviewer has no tool to read
+events, so it could not decide differently.
+
+- Only that case reads events. A pull request's full event list can run to
+  hundreds of KB, so the controller keeps only `ready_for_review` events
+  and passes on one timestamp.
+- A draft marked ready with no later push still gets no automatic review:
+  GitHub search can't filter on when a pull request was marked ready, so
+  the sweep can't find it. A `@lfx-one re-review` comment starts one.
+
+The controller needs one more operation on the credential:
+
+```bash
+guild credentials policy create "$CRED" \
+  --decision ALLOW \
+  --operations issues_list_events \
+  --workspaces <workspace-uuid> \
+  --agents <controller-agent-uuid>
+```
+
 ## Test before replacing triggers
 
 Check out the repository in a separate directory. Register two private test
@@ -103,7 +134,7 @@ handling before cutover.
    create an ALLOW policy scoped to the pilot workspace and controller, for
    `pulls_get`, `pulls_list_reviews`, `issues_list_comments`,
    `issues_add_labels`, `issues_create_comment`, `issues_update_comment`,
-   `pulls_update_review`.
+   `pulls_update_review`, `issues_list_events`.
    Keep the Native policy and default-deny for unmatched operations. The
    workspace uses only credentials scoped to it, so also grant the
    credential to the controller (root README, Agent grants). See the

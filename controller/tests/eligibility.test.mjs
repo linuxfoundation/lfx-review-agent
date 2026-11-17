@@ -35,6 +35,7 @@ async function dispatch(comments = [], reviews = [], input = event, overrides = 
   const calls = [];
   const task = { env: { REVIEWER_LOGIN: reviewerLogin }, tools: Object.fromEntries(Object.entries({
     lfx_one_github_pulls_get: async () => pr,
+    lfx_one_github_issues_list_events: async () => [],
     lfx_one_github_pulls_list_reviews: async p => reviews.slice((p.page - 1) * 100, p.page * 100),
     lfx_one_github_issues_list_comments: async p => comments.slice((p.page - 1) * 100, p.page * 100),
     lfx_one_github_issues_add_labels: async () => [],
@@ -244,6 +245,49 @@ test("a push to a never-reviewed PR older than 7 days skips without a model call
     comment: { id: 9, body: "@lfx-one re-review", created_at: now, user: { login: "author" } },
   };
   assert.equal((await dispatch([], [], request, { lfx_one_github_pulls_get: async () => old })).worker, 1);
+});
+test("a push to an old never-reviewed PR reads when it was last marked ready", async () => {
+  const input = { ...event, action: "synchronize" };
+  const old = { ...pr, created_at: "2026-10-01T12:00:00Z" };
+  const get = { lfx_one_github_pulls_get: async () => old };
+  const ev = (event, created_at) => ({ event, created_at, actor: { login: "someone" }, id: 1 });
+  const eventCalls = (r) => r.calls.filter(([name]) => name === "lfx_one_github_issues_list_events");
+  // Marked ready inside the window (now is 2026-11-04): a first review, with the time passed on.
+  const ready = await dispatch([], [], input, { ...get,
+    lfx_one_github_issues_list_events: async () => [ev("convert_to_draft", "2026-10-02T00:00:00Z"), ev("ready_for_review", "2026-11-02T10:00:00Z")],
+  });
+  assert.equal(ready.worker, 1);
+  const envelope = JSON.parse(ready.calls.find(([name]) => name === "reviewer")[1].text);
+  assert.equal(envelope.prepared.scope.mode, "full");
+  assert.equal(envelope.prepared.ready_for_review_at, "2026-11-02T10:00:00Z");
+  assert.deepEqual(eventCalls(ready).map(([, p]) => [p.issue_number, p.per_page, p.page]), [[15, 100, 1]]);
+  // The newest ready event can be on a later page.
+  const filler = Array.from({ length: 100 }, () => ev("labeled", "2026-10-03T00:00:00Z"));
+  const paged = await dispatch([], [], input, { ...get,
+    lfx_one_github_issues_list_events: async (p) => p.page === 1 ? filler : [ev("ready_for_review", "2026-11-03T00:00:00Z")],
+  });
+  assert.equal(paged.worker, 1);
+  assert.equal(eventCalls(paged).length, 2);
+  // Marked ready before the window, or never: skipped without a model call.
+  for (const events of [[ev("ready_for_review", "2026-10-20T00:00:00Z")], []]) {
+    const skipped = await dispatch([], [], input, { ...get, lfx_one_github_issues_list_events: async () => events });
+    assert.equal(skipped.worker, 0);
+    assert.match(skipped.text, /^Skipped: .*opened and last marked ready more than 7 days ago.*No model called\.$/);
+  }
+  // A failed read skips too: the reviewer could not check the ready time either.
+  const failed = await dispatch([], [], input, { ...get,
+    lfx_one_github_issues_list_events: async () => { throw Error("403 Forbidden"); },
+  });
+  assert.equal(failed.worker, 0);
+  assert.match(failed.text, /could not read when it was marked ready/);
+  // A recent PR, or a running review, never reads the events.
+  const recent = await dispatch([], [], input, { lfx_one_github_pulls_get: async () => ({ ...pr, created_at: "2026-11-03T00:00:00Z" }) });
+  assert.equal(recent.worker, 1);
+  assert.equal(eventCalls(recent).length, 0);
+  const running = await dispatch([comment(start)], [], input, get);
+  assert.equal(eventCalls(running).length, 0);
+  // Only the ready time reaches the reviewer, not the raw events.
+  assert.equal(JSON.stringify(envelope).includes("someone"), false);
 });
 test("failed or malformed GitHub reads hand the original input to the reviewer", async () => {
   const input = { ...event, action: "synchronize" };

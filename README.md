@@ -52,9 +52,9 @@ approved an earlier commit, it replaces that approval with a "changes
 requested" review so the PR can't merge without a human. To ask for a fresh
 check, a maintainer deletes that note and then pushes a commit, or
 converts the PR to a draft and marks it ready again (needed when the agent
-never reviewed a PR opened more than 7 days ago, since a push then starts
-nothing). The agent reviews the PR only if it no longer changes an excluded
-area.
+never reviewed a PR opened and last marked ready more than 7 days ago,
+since a push then starts nothing). The agent reviews the PR only if it no
+longer changes an excluded area.
 
 ## When it runs
 
@@ -66,7 +66,8 @@ before a session starts; see the Triggers section below. Each webhook
 trigger starts the review controller (`linux-foundation~lfx-review-controller`,
 in `controller/`). It skips a closed, merged or draft PR, a running
 review, the five-minute cooldown, an already reviewed head, or a push to a
-never-reviewed PR opened more than 7 days ago without a model call.
+never-reviewed PR opened and last marked ready more than 7 days ago without
+a model call.
 Otherwise it calls this agent and repairs escaped markers in the review it
 posted.
 
@@ -210,7 +211,7 @@ must be unique within the workspace.
 | Event | Action | Trigger name | Starts |
 | --- | --- | --- | --- |
 | `pull_request` | `opened` | `lfx-review-agent <repo> opened controller` | the initial review |
-| `pull_request` | `synchronize` | `lfx-review-agent <repo> synchronize controller` | a follow-up review after a push, or the initial review when a PR opened in the last 7 days never got one |
+| `pull_request` | `synchronize` | `lfx-review-agent <repo> synchronize controller` | a follow-up review after a push, or the initial review when a PR opened or last marked ready in the last 7 days never got one |
 | `pull_request` | `ready_for_review` | `lfx-review-agent <repo> ready_for_review controller` | the review of a PR that was a draft |
 | `issue_comment` | `created` | `lfx-review-agent <repo> re-review comment controller` | a review on a comment that starts with `@lfx-one re-review` (comment filter below) |
 | time, hourly at minutes 2, 17, 32, 47 | | `lfx-review-agent sweep` (one per workspace) | the sweep (`scripts/sweep-trigger.sh`) |
@@ -355,9 +356,9 @@ path broke Guild's operation generation (1.0.6), so 1.0.7 keeps the
 `{name}` parameter.
 
 `--workspaces` takes a UUID or `<owner>~<name>`, not a bare workspace name.
-The controller has its own two `ALLOW` policies on the same credential;
-`controller/README.md` lists their operations. The credential carries seven
-policies in all: five for this agent and two for the controller.
+The controller has its own three `ALLOW` policies on the same credential;
+`controller/README.md` lists their operations. The credential carries eight
+policies in all: five for this agent and three for the controller.
 
 If the credential is deleted and reconnected, its policies are gone and this
 step must be repeated for the new credential ID. A session that cannot
@@ -396,7 +397,7 @@ change the token on an existing credential, so a replacement is:
 2. Connect the new token with `guild integration connect
    linux-foundation~lfx-one-github --owner linux-foundation`. Leave out
    `--token` so the token is read from a hidden prompt.
-3. Recreate the seven policies on the new credential ID, then delete its
+3. Recreate the eight policies on the new credential ID, then delete its
    allow-all policy.
 4. Grant the new credential to both agents (Agent grants above).
 5. Check that the next session reads GitHub.
@@ -777,6 +778,14 @@ Run these on a throwaway PR before enabling triggers on a real repository.
     0.3 (with `G` = 4: group 0 at minute 2, group 1 at 17, and so on), that
     every group goes first once, and that no run searches more than 3
     groups or any group twice.
+51. Draft recovery: open a test PR as a draft, wait until it is more than
+    7 days old, deactivate the repository's `ready_for_review` trigger,
+    mark the PR ready, reactivate the trigger, and push a commit. Confirm
+    the controller session reads the issue events, the push starts review
+    1 as an initial review, and `prepared.ready_for_review_at` is the time
+    it was marked ready. Push to an old never-reviewed PR that was never a
+    draft: confirm a skip with no model call that says it was opened and
+    last marked ready more than 7 days ago.
 
 ## Ideas
 
