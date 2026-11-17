@@ -9,7 +9,7 @@
 openapi: 3.0.3
 info:
   title: LFX One GitHub
-  version: 1.0.8
+  version: 1.0.9
   description: GitHub REST operations the LFX review agent performs as lfx-one.
 servers:
   - url: https://api.github.com
@@ -207,6 +207,19 @@ paths:
                 body: { type: string }
       responses:
         "201": { $ref: "#/components/responses/Ok" }
+  /repos/{owner}/{repo}/issues/{issue_number}/events:
+    get:
+      operationId: issues_list_events
+      summary: List the events on an issue or pull request, oldest first
+      description: "Includes ready_for_review and convert_to_draft events with created_at. The review controller reads it to find when a pull request was last marked ready for review."
+      parameters:
+        - $ref: "#/components/parameters/owner"
+        - $ref: "#/components/parameters/repo"
+        - $ref: "#/components/parameters/issue_number"
+        - $ref: "#/components/parameters/per_page"
+        - $ref: "#/components/parameters/page"
+      responses:
+        "200": { $ref: "#/components/responses/OkList" }
   /repos/{owner}/{repo}/issues/comments/{comment_id}:
     patch:
       operationId: issues_update_comment
