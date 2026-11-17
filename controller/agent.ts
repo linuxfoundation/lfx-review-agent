@@ -11,19 +11,20 @@ import {
   escapedNewReviews,
   eventDetails,
   historyScope,
+  latestReadyAt,
   readEvent,
   reportedReviewIds,
 } from "./preflight.js";
 
-import { prMetadata, reviewMetadata, commentMetadata } from "./metadata.js";
+import { prMetadata, reviewMetadata, commentMetadata, eventMetadata } from "./metadata.js";
 
 const inputSchema = z.object({ type: z.literal("text"), text: z.string() });
 const outputSchema = z.object({ type: z.literal("text"), text: z.string() });
-const reviewer = guildAgentTool({ inputSchema: z.object({ text: z.string() }), outputSchema, calls: "@guildai/linux-foundation~lfx-review-agent@0.1.33" });
+const reviewer = guildAgentTool({ inputSchema: z.object({ text: z.string() }), outputSchema, calls: "@guildai/linux-foundation~lfx-review-agent@0.1.34" });
 function withOutput<I, O>(source: Pick<Tool<I>, "inputSchema">, endpoint: Endpoint, outputSchema: z.ZodType<O>): Tool<I, O> {
   return guildServiceTool("lfx-one-github", {
     description: endpoint.description, inputSchema: source.inputSchema, outputSchema,
-    endpoint: { ...endpoint, responseSchema: outputSchema }, owner: "linux-foundation", versionNumber: "1.0.8",
+    endpoint: { ...endpoint, responseSchema: outputSchema }, owner: "linux-foundation", versionNumber: "1.0.9",
   });
 }
 const tools = {
@@ -34,6 +35,7 @@ const tools = {
   lfx_one_github_issues_create_comment: withOutput(LfxOneGithubTools.lfx_one_github_issues_create_comment, endpoints.lfx_one_github_issues_create_comment, commentMetadata),
   lfx_one_github_issues_update_comment: LfxOneGithubTools.lfx_one_github_issues_update_comment,
   lfx_one_github_pulls_update_review: withOutput(LfxOneGithubTools.lfx_one_github_pulls_update_review, endpoints.lfx_one_github_pulls_update_review, reviewMetadata),
+  lfx_one_github_issues_list_events: withOutput(LfxOneGithubTools.lfx_one_github_issues_list_events, endpoints.lfx_one_github_issues_list_events, eventMetadata.array()),
   reviewer,
 };
 
@@ -131,9 +133,8 @@ async function run(
     const result = await task.tools.reviewer({ text: input.text });
     return { type: "text" as const, text: `Fallback: controller read failed (${reason}). ${result.text}` };
   }
-  const scope = historyScope(details.kind, pr.head.sha, reviews, login, {
-    createdAt: pr.created_at, time: details.time, comments,
-  });
+  const firstPush = { createdAt: pr.created_at, time: details.time, comments };
+  let scope = historyScope(details.kind, pr.head.sha, reviews, login, firstPush);
   const gate = eligibility(details.kind, details.time, pr, comments, reviews, login);
   if (gate.action === "running" || gate.action === "cooldown") {
     const issue = { owner: params.owner, repo: params.repo, issue_number: details.number };
@@ -185,6 +186,31 @@ async function run(
     const reason = gate.action === "running" ? "review already running" : "five-minute cooldown";
     return { type: "text" as const, text: `Skipped: ${reason}. ${label} ${notice} No model called.` };
   }
+  // A push to an old never-reviewed PR: a draft marked ready while its
+  // ready_for_review webhook was lost still gets its first review when it
+  // was marked ready within the window. Read only the ready events; a PR's
+  // full event list can be hundreds of KB.
+  let readyAt: string | null = null;
+  if (scope.needsReadyTime) {
+    let readyReadFailed = false;
+    try {
+      const ready: z.infer<typeof eventMetadata>[] = [];
+      let page = 1;
+      while (true) {
+        const batch = eventMetadata.array().parse(await task.tools.lfx_one_github_issues_list_events({
+          owner: params.owner, repo: params.repo, issue_number: details.number, per_page: 100, page,
+        }));
+        ready.push(...batch.filter((e) => e.event === "ready_for_review"));
+        if (batch.length < 100) break;
+        page += 1;
+      }
+      readyAt = latestReadyAt(ready);
+    } catch {
+      // The reviewer can't read events either, so a failed read skips.
+      readyReadFailed = true;
+    }
+    scope = historyScope(details.kind, pr.head.sha, reviews, login, { ...firstPush, readyAt, readyReadFailed });
+  }
   if (
     scope.mode === "skip" &&
     gate.action === "proceed"
@@ -234,6 +260,7 @@ async function run(
       updated_at: c.updated_at,
     })),
     scope,
+    ready_for_review_at: readyAt,
   };
   const result = await task.tools.reviewer({
     text: JSON.stringify({ event, prepared }),

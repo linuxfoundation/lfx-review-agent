@@ -11,6 +11,7 @@ import {
   reportedReviewIds,
   eventDetails,
   historyScope,
+  latestReadyAt,
   login,
   readEvent,
 } from "../dist/preflight.js";
@@ -194,6 +195,49 @@ test("a push with no own review starts a first review only within the sweep's 7-
   assert.equal(push(undefined), "undecided");
   assert.equal(push("not a date"), "undecided");
   assert.equal(push(old, [], ""), "undecided");
+});
+test("an old never-reviewed PR is measured from when it was last marked ready", () => {
+  const time = "2026-11-16T18:45:00Z";
+  const old = "2026-10-01T00:00:00Z";
+  const scope = (extra) => historyScope("synchronize", "a", [], login, { createdAt: old, time, comments: [], ...extra });
+  // Without the ready time, an old PR asks the controller to read it.
+  assert.deepEqual(scope({}), {
+    mode: "skip", needsReadyTime: true,
+    reason: "no first review, and the PR was opened more than 7 days ago",
+  });
+  // Marked ready inside the window (same UTC-date rule as created_at).
+  assert.deepEqual(scope({ readyAt: "2026-11-14T20:26:24Z" }), { mode: "full" });
+  assert.equal(scope({ readyAt: "2026-11-09T00:00:00Z" }).mode, "full");
+  // Marked ready before the window, never marked ready, or unreadable.
+  for (const extra of [{ readyAt: "2026-11-08T23:59:59Z" }, { readyAt: null }, { readyAt: "not a date" }]) {
+    const s = scope(extra);
+    assert.equal(s.mode, "skip", JSON.stringify(extra));
+    assert.equal(s.needsReadyTime, undefined, JSON.stringify(extra));
+    assert.match(s.reason, /opened and last marked ready more than 7 days ago/, JSON.stringify(extra));
+  }
+  const failed = scope({ readyAt: null, readyReadFailed: true });
+  assert.equal(failed.mode, "skip");
+  assert.match(failed.reason, /could not read when it was marked ready/);
+  // A recent PR never needs the ready time.
+  assert.deepEqual(historyScope("synchronize", "a", [], login, { createdAt: "2026-11-15T00:00:00Z", time, comments: [] }), { mode: "full" });
+});
+test("latestReadyAt takes the newest ready_for_review event and ignores the rest", () => {
+  const ev = (event, created_at) => ({ event, created_at });
+  assert.equal(latestReadyAt([]), null);
+  assert.equal(latestReadyAt([ev("labeled", "2026-11-01T00:00:00Z"), ev("convert_to_draft", "2026-11-15T00:00:00Z")]), null);
+  assert.equal(latestReadyAt([
+    ev("ready_for_review", "2026-10-02T00:00:00Z"),
+    ev("convert_to_draft", "2026-10-05T00:00:00Z"),
+    ev("ready_for_review", "2026-11-14T20:26:24Z"),
+    ev("review_requested", "2026-11-15T00:00:00Z"),
+  ]), "2026-11-14T20:26:24Z");
+  // Order does not matter, and entries without a usable time are skipped.
+  assert.equal(latestReadyAt([
+    ev("ready_for_review", "2026-11-14T20:26:24Z"),
+    ev("ready_for_review", "2026-10-02T00:00:00Z"),
+    { event: "ready_for_review" },
+    ev("ready_for_review", "garbage"),
+  ]), "2026-11-14T20:26:24Z");
 });
 test("HTML-encoded own markers count as markers; other logins still do not", () => {
   const encode = (s) => s.replaceAll("<", "&lt;").replaceAll(">", "&gt;");

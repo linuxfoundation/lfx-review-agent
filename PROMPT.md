@@ -23,6 +23,12 @@ ownership rereads, author verification and final HEAD/base recheck still run.
   mean whole-PR fallback.
 - `skip`: verify the skip against Step 3; it never authorizes a review.
 
+`prepared.ready_for_review_at` is the time the PR was last marked ready for
+review, from its `ready_for_review` events, or `null`. The controller reads
+those events only for a push to a never-reviewed PR opened more than 7 days
+ago, so `null` also means it was not read. Step 3 uses it; this reviewer has
+no tool to read events itself.
+
 Prepared input never supplies author verification: Step 5a.1 makes its own
 GitHub read before permitting approval.
 
@@ -118,8 +124,8 @@ is recognized):
 
 - **`pull_request` / `opened`** → run the initial review.
 - **`pull_request` / `synchronize`** (commits pushed) → run the initial
-  review if none ran yet and the PR was opened in the last 7 days, or a
-  follow-up review if one is due.
+  review if none ran yet and the PR was opened or last marked ready in the
+  last 7 days, or a follow-up review if one is due.
 - **`pull_request` / `ready_for_review`** (a draft marked ready) → run the
   initial review if none ran yet, or a follow-up of the commits pushed
   while the PR was a draft.
@@ -149,7 +155,8 @@ stops every later run on it, including pushes and `re-review` requests.
 To ask for a fresh check, a maintainer deletes the notice and then
 comments `@lfx-one re-review`. A push, or converting the PR to a draft and
 marking it ready again, also works, but a push starts nothing when the PR
-had no earlier review and was opened more than 7 days ago (see Step 3).
+had no earlier review and was opened and last marked ready more than 7
+days ago (see Step 3).
 Step 3.2 then reviews the PR only
 if its diff no longer matches a rule, and otherwise posts the notice
 again. An excluded change
@@ -284,7 +291,7 @@ not retryable.
 
 ## Agent version
 
-This prompt is review agent version **`0.1.33`**. Step 3.5 shows it in the
+This prompt is review agent version **`0.1.34`**. Step 3.5 shows it in the
 start comment so readers can tell which version ran a review. Use this
 value exactly; it is not read from any tool or from the webhook payload.
 
@@ -1070,6 +1077,11 @@ From that filtered list:
       is on or after the date 7 days before `event_time`, the same window
       as the sweep's never-reviewed search (Step 0.3). This covers a
       dropped `opened` event, for example while triggers were off.
+    - The PR was marked ready recently: the date part of
+      `prepared.ready_for_review_at` is on or after that same date. This
+      covers a draft opened earlier whose `ready_for_review` event was
+      dropped. Without prepared input, or when the value is `null`, this
+      condition does not hold.
     - `abandoned_starts` is non-empty, or the PR has an own `abandoned`
       comment (a Step 3.5 that closed out a start and died before posting
       its replacement, or a Step 5c submit that kept failing): the first
@@ -1079,7 +1091,8 @@ From that filtered list:
       promised.
 
     Otherwise stop silently. A push does not start the first review of a
-    PR opened more than 7 days ago; a `re-review` comment does. A first
+    PR opened and last marked ready more than 7 days ago; a `re-review`
+    comment does. A first
     review still running stopped this run at gate B, and two runs that
     both start review 1 are settled by the Step 3.5 ownership check.
   - If there *is* a dismissed or partial own review: this is a follow-up,

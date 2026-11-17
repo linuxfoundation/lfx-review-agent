@@ -47,12 +47,13 @@ flowchart LR
    reviews and its comments, and skips a closed, merged or draft pull
    request, a review still running, the five-minute cooldown, a head
    that was already reviewed, or a push to a pull request that the agent
-   never reviewed and that was opened more than 7 days ago (unless the
-   agent started or declined its first review: the reviewer then
-   decides). When it skips, it may add the pending label
-   or post one debounce notice. A `re-review` request on a closed, merged
-   or draft pull request still goes to the reviewer, which answers it
-   with a skip notice.
+   never reviewed and that was opened and last marked ready more than 7
+   days ago (unless the agent started or declined its first review: the
+   reviewer then decides). Only for that last case does it read the pull
+   request's events, to find when it was last marked ready. When it
+   skips, it may add the pending label or post one debounce notice. A
+   `re-review` request on a closed, merged or draft pull request still goes
+   to the reviewer, which answers it with a skip notice.
 4. Otherwise the controller calls the Native reviewer with the event and
    a `prepared` object holding those reads and a scope hint. If a read
    fails, it passes the original event instead, and the reviewer applies
@@ -64,10 +65,10 @@ flowchart LR
    that run posted.
 
 A push normally starts a follow-up review. When the pull request has no
-review from the agent yet and was opened in the last 7 days, the push
-starts the first review instead, which recovers a missed `opened` event.
-On an older pull request with no review, a `@lfx-one re-review` comment
-starts the first review.
+review from the agent yet and was opened or last marked ready in the last
+7 days, the push starts the first review instead, which recovers a missed
+`opened` or `ready_for_review` event. On an older pull request with no
+review, a `@lfx-one re-review` comment starts the first review.
 
 A Guild time trigger runs a sweep four times an hour. The sweep calls the
 Native reviewer directly, without the controller, and reviews at most one
@@ -92,7 +93,7 @@ search in a row.
 | 1 | Reads pull request metadata and stops on a closed or draft pull request. |
 | 1.5 | Classifies its own earlier comments and applies the gates below. |
 | 2 | Derives the review cycle from its own earlier reviews. |
-| 3 | Decides between an initial review, a follow-up of the new commits, or no review. A push to a recent pull request with no review starts the initial review. |
+| 3 | Decides between an initial review, a follow-up of the new commits, or no review. A push to a pull request with no review that was opened or marked ready recently starts the initial review. |
 | 3.2 | Checks the "Review exclusions" table. |
 | 3.5 | Posts the start comment, which shows the agent version. |
 | 4 | Reads the diff, the commits and the repository's rule files, and reviews them. |

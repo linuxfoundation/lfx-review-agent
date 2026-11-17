@@ -24,3 +24,9 @@ export const commentMetadata = z.object({
   updated_at: z.string(), created_at: z.string().optional(),
   html_url: z.string().optional(), author_association: z.string().optional(),
 });
+// Issue events, narrowed to the two fields the controller reads: a pull
+// request's events can run to hundreds of KB, and the controller's state is
+// saved between tool calls.
+export const eventMetadata = z.object({
+  event: z.string(), created_at: z.string().optional(),
+});

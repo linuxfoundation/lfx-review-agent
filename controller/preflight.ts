@@ -255,7 +255,12 @@ export function eventDetails(event: Event, reviewerLogin = login) {
   return { owner, repo, kind: "re-review", number: event.issue.number, time: c.created_at };
 }
 
-type FirstPush = { createdAt?: string; time?: string; comments: Comment[] };
+type FirstPush = {
+  createdAt?: string; time?: string; comments: Comment[];
+  // When the PR was last marked ready for review: undefined = not read yet,
+  // null = no such event (or the read failed, see readyReadFailed).
+  readyAt?: string | null; readyReadFailed?: boolean;
+};
 // One explicit shape for every scope, so callers can read `reason` (or
 // `from` and `to`) without relying on how the compiler infers the union.
 export type Scope = {
@@ -263,27 +268,55 @@ export type Scope = {
   reason?: string;
   from?: string;
   to?: string;
+  // Set on a skip that the PR's last ready-for-review time could overturn:
+  // the controller reads it and asks again with `readyAt`.
+  needsReadyTime?: boolean;
 };
 
+// The newest `ready_for_review` event's time, or null when there is none.
+// Events come oldest first, but the order is not relied on.
+export function latestReadyAt(events: { event: string; created_at?: string }[]): string | null {
+  let latest: string | null = null;
+  for (const e of events) {
+    if (e.event !== "ready_for_review" || !Number.isFinite(Date.parse(e.created_at ?? ""))) continue;
+    if (latest === null || Date.parse(e.created_at!) > Date.parse(latest)) latest = e.created_at!;
+  }
+  return latest;
+}
+
 // A push to a PR with no own review (PROMPT.md Step 3, `synchronize`)
-// starts the first review when the PR was created within the sweep's
-// never-reviewed window: on or after the UTC date 7 days before the event.
-// An older PR is skipped unless this agent already started or declined its
-// first review; that recovery, or dates that can't be read, is left to the
-// reviewer.
+// starts the first review when the PR was created, or last marked ready
+// for review, within the sweep's never-reviewed window: on or after the UTC
+// date 7 days before the event. An older PR is skipped unless this agent
+// already started or declined its first review; that recovery, or dates
+// that can't be read, is left to the reviewer. The ready time is read only
+// for an old PR without recovery evidence (`needsReadyTime`).
 function firstPushScope(firstPush: FirstPush | undefined, reviewerLogin: string): Scope {
   const created = Date.parse(firstPush?.createdAt ?? "");
   const time = Date.parse(firstPush?.time ?? "");
   if (!firstPush || !Number.isFinite(created) || !Number.isFinite(time))
     return { mode: "undecided", reason: "check first-review window" };
   const week = new Date(time - FIRST_REVIEW_WINDOW_DAYS * 86400000).toISOString().slice(0, 10);
-  if (new Date(created).toISOString().slice(0, 10) >= week) return { mode: "full" };
+  const inWindow = (t: number) => new Date(t).toISOString().slice(0, 10) >= week;
+  if (inWindow(created)) return { mode: "full" };
   if (firstPush.comments.some((c) => c.user?.login === reviewerLogin &&
       ["start", "abandoned", "too-large"].includes(commentClass(c))))
     return { mode: "undecided", reason: "check first-review recovery" };
+  if (firstPush.readyAt === undefined)
+    return {
+      mode: "skip", needsReadyTime: true,
+      reason: `no first review, and the PR was opened more than ${FIRST_REVIEW_WINDOW_DAYS} days ago`,
+    };
+  const ready = Date.parse(firstPush.readyAt ?? "");
+  if (Number.isFinite(ready) && inWindow(ready)) return { mode: "full" };
+  if (firstPush.readyReadFailed)
+    return {
+      mode: "skip",
+      reason: `no first review, the PR was opened more than ${FIRST_REVIEW_WINDOW_DAYS} days ago, and the controller could not read when it was marked ready`,
+    };
   return {
     mode: "skip",
-    reason: `no first review, and the PR was opened more than ${FIRST_REVIEW_WINDOW_DAYS} days ago`,
+    reason: `no first review, and the PR was opened and last marked ready more than ${FIRST_REVIEW_WINDOW_DAYS} days ago`,
   };
 }
 
