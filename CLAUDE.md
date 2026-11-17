@@ -20,7 +20,7 @@ webhook trigger runs before it calls the reviewer.
 | `scripts/onboard-repo.sh` | Creates a repository's webhook triggers (onboarding step 4). |
 | `scripts/sweep-trigger.sh` | Sets the sweep trigger's repository list and schedule from the webhook triggers. |
 | `scripts/re-review-trigger.sh` | Adds the `@lfx-one re-review` comment filter to existing re-review triggers and activates them. |
-| `controller/` | TypeScript pre-check; run `npm test` in that directory. |
+| `controller/` | TypeScript pre-check; run `npm ci` and `npm test` in that directory. |
 | `scripts/test-sweep-trigger.py` | Offline sweep test; run with `python3`. |
 | `.markdownlint.json` | Lint config (80 columns; tables and code blocks exempt). |
 
@@ -91,10 +91,12 @@ through `.git/info/exclude`. Never commit them.
   fields that only some return paths set. `historyScope` returns `Scope`
   for this reason: an inferred union broke Guild's build of controller
   0.1.10 (`scope.reason` on a variant without it).
-- Run `npm test` in `controller/` before every controller PR and publish.
-  It builds with `tsc --build --force`; keep the `--force`. An incremental
-  build reused stale `dist/tsconfig.tsbuildinfo` state and reported no
-  errors for code that Guild's clean build rejected.
+- Run `npm ci` and then `npm test` in `controller/` before every controller
+  PR and publish. `npm ci` installs what `package-lock.json` pins; `git pull`
+  leaves `node_modules` on the old versions. `npm test` builds with
+  `tsc --build --force`; keep the `--force`. An incremental build reused
+  stale `dist/tsconfig.tsbuildinfo` state and reported no errors for code
+  that Guild's clean build rejected.
 - Publishing differs from the Native reviewer: see "Publishing" in
   `controller/README.md` (agent name, `--no-bump`).
 

@@ -17,6 +17,7 @@ version in `package.json` before it uploads.
 
 ```bash
 cd controller
+npm ci
 npm test
 guild agent save linux-foundation~lfx-review-controller --no-bump --publish --version-number <package.json version> -m "Call reviewer <reviewer version> (PR #<n>)"
 ```
@@ -26,6 +27,13 @@ Guild builds the controller in a clean directory with `tsc --build`.
 build reuses `dist/tsconfig.tsbuildinfo` from earlier builds and can report
 no errors for code that Guild's clean build rejects: controller 0.1.10
 first failed that way on a type error that local tests had passed.
+
+Run `npm ci` first. Guild installs exactly what `package-lock.json` pins,
+but `git pull` does not update `node_modules`. When the lockfile moved,
+for example to a new integration version, a local build against the old
+packages fails or passes differently from Guild's: controller 0.1.11
+failed locally against the still-installed integration 1.0.8 until
+`npm ci` installed 1.0.9.
 
 A version whose build fails stays a draft without a version number, so
 fix the code and publish again with the same number. After publishing,
