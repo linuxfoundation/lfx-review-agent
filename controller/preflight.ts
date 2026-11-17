@@ -256,6 +256,14 @@ export function eventDetails(event: Event, reviewerLogin = login) {
 }
 
 type FirstPush = { createdAt?: string; time?: string; comments: Comment[] };
+// One explicit shape for every scope, so callers can read `reason` (or
+// `from` and `to`) without relying on how the compiler infers the union.
+export type Scope = {
+  mode: "full" | "delta" | "skip" | "undecided";
+  reason?: string;
+  from?: string;
+  to?: string;
+};
 
 // A push to a PR with no own review (PROMPT.md Step 3, `synchronize`)
 // starts the first review when the PR was created within the sweep's
@@ -263,7 +271,7 @@ type FirstPush = { createdAt?: string; time?: string; comments: Comment[] };
 // An older PR is skipped unless this agent already started or declined its
 // first review; that recovery, or dates that can't be read, is left to the
 // reviewer.
-function firstPushScope(firstPush: FirstPush | undefined, reviewerLogin: string) {
+function firstPushScope(firstPush: FirstPush | undefined, reviewerLogin: string): Scope {
   const created = Date.parse(firstPush?.createdAt ?? "");
   const time = Date.parse(firstPush?.time ?? "");
   if (!firstPush || !Number.isFinite(created) || !Number.isFinite(time))
@@ -281,7 +289,7 @@ function firstPushScope(firstPush: FirstPush | undefined, reviewerLogin: string)
 
 export function historyScope(
   kind: string, head: string, history: Review[], reviewerLogin = login, firstPush?: FirstPush,
-) {
+): Scope {
   const reviews = decodeOwn(history, reviewerLogin);
   const own = reviews.filter(
     (r) => r.user?.login === reviewerLogin && r.body?.includes(marker),
