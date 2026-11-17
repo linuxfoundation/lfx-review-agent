@@ -8,6 +8,30 @@ If a GitHub read fails or returns an unexpected shape, the controller fails
 open: it passes the original input to the reviewer, which applies every gate
 itself, and reports `Fallback: controller read failed (...)`.
 
+## Publishing
+
+Publish the Native reviewer first, from the repository root, then the
+controller. This directory has no `guild.json`, so name the agent, and pass
+`--no-bump`: for a TypeScript agent, `guild agent save` otherwise bumps the
+version in `package.json` before it uploads.
+
+```bash
+cd controller
+npm test
+guild agent save linux-foundation~lfx-review-controller --no-bump --publish --version-number <package.json version> -m "Call reviewer <reviewer version> (PR #<n>)"
+```
+
+Guild builds the controller in a clean directory with `tsc --build`.
+`npm test` runs the same build with `--force`. Without it, the incremental
+build reuses `dist/tsconfig.tsbuildinfo` from earlier builds and can report
+no errors for code that Guild's clean build rejects: controller 0.1.10
+first failed that way on a type error that local tests had passed.
+
+A version whose build fails stays a draft without a version number, so
+fix the code and publish again with the same number. After publishing,
+check that the webhook triggers use the new version: `guild trigger list`
+shows it as `workspace_agent.agent_version.version_number`.
+
 ## Escaped marker repair
 
 The reviewer sometimes posts its formal review with HTML-escaped markers
