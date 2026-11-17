@@ -8,7 +8,7 @@
   },
   "scripts": {
     "build": "npm run build:compile && npm run build:transform && npm run build:copy",
-    "build:compile": "tsc --build",
+    "build:compile": "tsc --build --force",
     "build:transform": "babel ./dist/agent.js --out-dir ./dist --out-file-extension .compiled.js --plugins @guildai/babel-plugin-agent-compiler",
     "build:copy": "cp *.md dist/",
     "bundle": "npm run build && esbuild dist/agent.compiled.js --bundle --loader:.md=text --platform=node --format=esm --external:zod --external:@guildai/agents-sdk | gzip | base64 > agent.js.gz",
