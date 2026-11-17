@@ -284,7 +284,7 @@ not retryable.
 
 ## Agent version
 
-This prompt is review agent version **`0.1.31`**. Step 3.5 shows it in the
+This prompt is review agent version **`0.1.32`**. Step 3.5 shows it in the
 start comment so readers can tell which version ran a review. Use this
 value exactly; it is not read from any tool or from the webhook payload.
 
@@ -1965,8 +1965,9 @@ invent an additional bar beyond the five bullets above (e.g. treating a
 findings of any kind"). If every Approve bullet holds, the outcome is
 `APPROVE`. Remaining `[nit]`/`[question]` items ride along as inline
 comments, they do not change the verdict. The one exception is the author
-organization gate in 5a.1 and the CI check gate in 5a.2, which can
-withhold the approval but never turn it into `REQUEST_CHANGES`.
+organization and review-only repository checks in 5a.1 and the CI check
+gate in 5a.2, which can withhold the approval but never turn it into
+`REQUEST_CHANGES`.
 
 ### 5a.1. Author organization gate
 
@@ -1994,12 +1995,51 @@ bots such as `dependabot[bot]`, a missing `author_association`, or any
 other value. The gate withholds approval when it cannot verify; it does not
 stop the run.
 
+**Review-only repositories.** Some repositories want this agent's review
+but never its approval. The workspace lists them in this value:
+`{{env.REVIEW_ONLY_REPOS}}`. It is a comma-separated list of `owner/repo`
+entries, and `none` (or an empty value) lists no repository. An entry
+without an owner names a repository in `linuxfoundation`. When
+`<owner>/<repo>` for this PR (from Step 0, or the sweep's candidate)
+equals an entry, ignoring case and surrounding spaces, set
+`approval_allowed` false, whatever the author check found. This check
+needs no read and is never skipped: run it even when the
+`lfx_one_github_pulls_get` read above failed. It never changes a
+`REQUEST_CHANGES` verdict, because 5a.1 runs only when the Approve
+criteria hold.
+
 When `approval_allowed` is false, the verdict is ⚠️ **Review passed, human
 approval required**. Submit the `COMMENT` event in 5c instead of
-`APPROVE`, and add the note below to the review body and the Step 6 recap:
+`APPROVE`. Add each note below that applies to the review body and the
+Step 6 recap: the author note when the author check did not pass, and the
+review-only note when the repository is listed.
 
 ```text
 This pull request passed automated review, but its author isn't a verified member of the `<owner>` GitHub organization, so I can't approve it. A maintainer needs to review and approve it before merge.
+```
+
+```text
+This pull request passed automated review. This repository is set to review only, so I never approve pull requests here. A maintainer needs to review and approve it before merge.
+```
+
+**Earlier change request.** A `COMMENT` review does not clear this
+agent's earlier `CHANGES_REQUESTED` review on GitHub, and only a later
+`APPROVE` would. So whenever this run submits the approval-withheld
+`COMMENT` (from 5a.1, 5a.2, 5a.3 or the 5c gate A1 revoke check), decide
+in Step 5c, just before submitting, whether to add the note below.
+Another run can post a revoking review while this one reviews, so use the
+Step 2 review list together with the reviews from 5c's tail read (the
+latest one, if 5c reads the reviews again before a submit retry). Apply
+the selection the Step 1.5 approval guard uses: own reviews that
+carry `<!-- lfx-review-agent:review -->`, `<!-- lfx-review-agent:excluded`
+(the Step 3.2 revoking review) or `<!-- lfx-review-agent:too-large -->`
+(the gate A1 revoking review), with `state` `APPROVED` or
+`CHANGES_REQUESTED`. When the most recent of them is `CHANGES_REQUESTED`,
+also add this note after the other notes, in the review body and the
+Step 6 recap:
+
+```text
+My earlier review requested changes, and GitHub still counts it until it's dismissed. After checking the fixes, a maintainer should dismiss that review.
 ```
 
 ### 5a.2. CI check gate
@@ -2327,7 +2367,8 @@ Call `lfx_one_github_pulls_create_review` once, with:
   `Findings outside the diff`, then, on a follow-up, the finding status
   lines (below). For an approval-withheld review, the second
   line is `<!-- lfx-review-agent:approval-withheld -->`, then each of the
-  5a.1, 5a.2 and 5a.3 notes that applies. Step 2 of later runs reads that
+  5a.1, 5a.2 and 5a.3 notes that applies, then the earlier change request
+  note (5a.1) when it applies. Step 2 of later runs reads that
   marker to
   treat the review as a completed round.
 - `comments`: the array of inline comments from 5b, each
@@ -2563,12 +2604,14 @@ the top short: some readers stop there.
      earlier one. Then `and N more` when there are more. Leave the line
      out when there are no gaps. It adds a call-out and changes no
      count.
-   - When 5a.1 withheld approval, the 5a.1 note. When 5a.2 withheld it,
-     the 5a.2 note. When 5a.3 found unread changed files, the 5a.3 note,
-     whatever the decision, so the files are named near the top of the
-     summary. When 5a.3 submitted `REQUEST_CHANGES` to replace a live own
-     approval, add one sentence saying the earlier approval no longer
-     counts, whatever the decision label.
+   - When 5a.1 withheld approval, each 5a.1 note that applies. When 5a.2
+     withheld it, the 5a.2 note. When the review is an approval-withheld
+     `COMMENT`, the earlier change request note (5a.1) when it applies.
+     When 5a.3 found unread changed files, the 5a.3 note, whatever the
+     decision, so the files are named near the top of the summary. When
+     5a.3 submitted `REQUEST_CHANGES` to replace a live own approval, add
+     one sentence saying the earlier approval no longer counts, whatever
+     the decision label.
    - When 5a.2 found a failed check, whatever the decision, one line
      naming each failed check and whether it is required, then asking for
      a fix before merge, for example ``Failed checks: `DCO` (required),
@@ -2711,8 +2754,9 @@ Review posted: <verdict>
 - Formal review (with inline comments): <html_url>
 - Approval withheld (only when 5a.1, 5a.2, 5a.3 or the 5c gate A1
   revoke check withheld it): the PR author isn't a verified org member,
-  a required check failed (name it), a changed file couldn't be read
-  (name it), or the PR became too large during the review
+  the repository is set to review only, a required check failed (name
+  it), a changed file couldn't be read (name it), or the PR became too
+  large during the review
 ```
 
 If either URL is missing, say so explicitly and link the PR itself instead
